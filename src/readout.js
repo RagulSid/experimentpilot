@@ -153,12 +153,18 @@ export async function fetchAndRead({ plan, client, refresh = false, now = () => 
     } else {
       await client.refreshResults(experiment.id);
       refreshed = true;
-      const requestedAt = now().getTime();
+      // Fresh means Flagsmith's own timestamps show a new request that has been computed:
+      // refresh_requested_at moved past the one before our refresh, and as_of is at or after it.
+      // Never compare with this machine's clock (it can differ from Flagsmith's by seconds).
+      const previousRequest = Date.parse(before?.results?.refresh_requested_at ?? '');
       stale = true;
       for (let waited = 0; waited < waitMs; waited += pollMs) {
         await sleep(pollMs);
-        const asOf = Date.parse((await client.getResults(experiment.id))?.results?.as_of ?? '');
-        if (asOf >= requestedAt - 1000) { stale = false; break; }
+        const body = (await client.getResults(experiment.id))?.results;
+        const requested = Date.parse(body?.refresh_requested_at ?? '');
+        const asOf = Date.parse(body?.as_of ?? '');
+        const newRequest = Number.isFinite(requested) && (!Number.isFinite(previousRequest) || requested > previousRequest);
+        if (newRequest && asOf >= requested) { stale = false; break; }
       }
     }
   }
