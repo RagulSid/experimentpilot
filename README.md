@@ -33,6 +33,7 @@ Limits of the guard today: G8 and G10 read the app file as text and find `const 
   - **START** starts the experiment. A person approves it only after the app using the flag is deployed, and only once a valid CREATE approval exists. `... --phase start`
   - Each run checks the plan with the guard, prints that phase's diff, asks for a name and a typed `yes`, and writes `approvals/<planId>.<phase>.json` with both hashes.
   - It refuses unless a person is typing at a terminal. No other file in `src/` writes approvals, and a test checks this. Approval files are committed as evidence.
+  - In Windows PowerShell, the bare `--` after `npm run approve` is swallowed, so npm takes `--app` and `--phase` as its own settings and the command refuses with its usage line. Run `node src/approve.js <planfile> --app <app file> --phase create` directly, or quote the separator: `npm run approve '--' ...`.
   - The applier refuses when an approval is missing or malformed, has no approver, or is for another plan or phase, and when the plan or the diff has changed since approval.
 - **Applier** ([src/applier.js](src/applier.js)): `npm run pilot -- apply <planfile> --app <file> --phase create|start` re-runs the guard and checks that phase's approval. It does a **dry run** unless `--apply` is given. With `--apply`:
   - It reads the environment through the API first and refuses if its name differs from the plan's.
