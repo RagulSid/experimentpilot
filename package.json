@@ -1,0 +1,16 @@
+{
+  "name": "experimentpilot",
+  "version": "0.1.0",
+  "description": "Describe an experiment in one sentence; plain code guards it, a person approves it, and Flagsmith runs it.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node src/cli.js check",
+    "pilot": "node src/cli.js"
+  }
+}
