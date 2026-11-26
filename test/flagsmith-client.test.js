@@ -147,18 +147,37 @@ test('a wrong token gets the server 401 back as an error', async () => {
   } finally { await fake.close(); }
 });
 
-test('every route states its source: recorded (with call number) or swagger (with operationId); none guessed', async () => {
+test('every route has been seen working for real: source recorded, with its call number', async () => {
   const { ROUTES } = await load();
-  const bySource = (s) => Object.entries(ROUTES).filter(([, r]) => r.source === s).map(([n]) => n).sort();
-  for (const [name, r] of Object.entries(ROUTES)) {
-    assert.ok(['recorded', 'swagger'].includes(r.source), `${name} has source ${r.source}`);
-    if (r.source === 'recorded') assert.ok(Number.isInteger(r.call), `${name} names its recorded call number`);
-    if (r.source === 'swagger') assert.match(r.operationId, /^[a-z0-9_]+$/, `${name} names its OpenAPI operationId`);
-  }
-  assert.deepEqual(bySource('guessed'), []);
   for (const name of ['getEnvironment', 'listFeatures', 'createFeature', 'createVariation', 'listExperiments', 'listMetrics']) {
     assert.ok(name in ROUTES, `${name} exists`);
   }
+  for (const [name, r] of Object.entries(ROUTES)) {
+    assert.equal(r.source, 'recorded', `${name} has source ${r.source}`);
+    assert.ok(Number.isInteger(r.call), `${name} names its recorded call number`);
+  }
+  // Calls 29-34 are the routes first seen in the real CREATE run on Nov 26.
+  assert.deepEqual(
+    ['getEnvironment', 'listFeatures', 'listExperiments', 'listMetrics', 'createFeature', 'createVariation'].map((n) => ROUTES[n].call),
+    [29, 30, 31, 32, 33, 34],
+  );
+});
+
+test('the fake answers the Nov 26 routes with the same fields as the real responses', async () => {
+  const { client, fake } = await setup();
+  const real = (f) => JSON.parse(readFileSync(new URL(`../fixtures/flagsmith/recorded/2026-11-26-create/${f}`, import.meta.url), 'utf8')).response;
+  const keys = (o) => Object.keys(o).sort();
+  try {
+    const raw = async (path) => (await fetch(new URL(path, fake.baseUrl), { headers: { Authorization: `Api-Key ${TOKEN}` } })).json();
+    assert.deepEqual(keys(await client.getEnvironment()), keys(real('01-getEnvironment.json')));
+    assert.deepEqual(keys(await raw(`api/v1/projects/${PROJECT_ID}/features/?search=x`)), keys(real('02-listFeatures.json')));
+    assert.deepEqual(keys(await raw(`api/v1/environments/${ENV_KEY}/experiments/?q=x`)), keys(real('03-listExperiments.json')));
+    assert.deepEqual(keys(await raw(`api/v1/environments/${ENV_KEY}/experiment-metrics/?q=x`)), keys(real('04-listMetrics.json')));
+    const feature = await client.createFeature({ name: 'pilot_rehearsal_1', type: 'MULTIVARIATE', initial_value: 'control', default_enabled: true });
+    assert.deepEqual(keys(feature), keys(real('05-createFeature.json')));
+    const option = await client.createVariation(feature.id, { type: 'unicode', string_value: 'variant_b', default_percentage_allocation: 0, key: 'variant_b', feature: feature.id });
+    assert.deepEqual(keys(option), keys(real('06-createVariation.json')));
+  } finally { await fake.close(); }
 });
 
 test('the routes from Swagger work against the fake: environment, feature search, create, keyed variation, experiment search', async () => {
