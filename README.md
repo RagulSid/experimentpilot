@@ -59,7 +59,7 @@ Limits of the guard today: G8 and G10 read the app file as text and find `const 
 
 ## How this was built: AI-assisted
 
-This project was built with an AI coding agent (Claude Code). Plainly:
+This project was built with the help of an AI coding agent. Plainly:
 
 - **The AI wrote** the code, tests, workflows and this README, working in small checkpoints, and ran the commands (tests, dry runs, and the Flagsmith calls after each human approval).
 - **Ragul (the human) decided** the product, the track, the rules (guard rules G1 to G10 and the non-negotiables), and each open question the AI raised (for example: create the flag enabled, two separate approvals, commit the Production client key, no Production writes until the real experiment).
