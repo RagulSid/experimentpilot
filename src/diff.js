@@ -1,25 +1,57 @@
 // The exact changes a plan would make in Flagsmith, per phase, in the order the applier
-// makes them. Two phases, each approved separately:
+// makes them. Three phases, each approved separately:
 //   create: create the flag (with its variations), the metric and the experiment (not started)
 //   start:  start that experiment, only once the app using the flag is deployed
+//   stop:   complete (end) it once its stop rule is met, and choose what the flag serves afterwards
+//           (rollout: control, disable, or variant:<key>; the choice is part of the hashed diff)
 // A person approves one phase's list; its hash (diffSha256) goes into that phase's approval.
-// Built only from the plan, so the same plan and phase always give the same diff.
+// Built only from the plan (and, for stop, the rollout choice), so the same inputs always give the same diff.
 import { validatePlan, canonicalJson, sha256Hex } from './plan.js';
 
-export const PHASES = ['create', 'start'];
+export const PHASES = ['create', 'start', 'stop'];
+export const ROLLOUT_HELP = 'control, disable, or variant:<variant key>';
 const CONTROL_KEY = 'control';
 const EXPECTED_DIRECTION = { up: 'increase', down: 'decrease' };
 
 export function assertPhase(phase) {
-  if (!PHASES.includes(phase)) throw new TypeError(`phase must be "create" or "start", got ${JSON.stringify(phase)}`);
+  if (!PHASES.includes(phase)) throw new TypeError(`phase must be "create", "start" or "stop", got ${JSON.stringify(phase)}`);
 }
 
-export function buildDiff(plan, phase) {
+// What the flag serves after the experiment is completed (POST .../complete/, rollout_decision).
+export function parseRollout(plan, rollout) {
+  if (typeof rollout !== 'string' || !rollout) throw new TypeError(`stop needs a rollout: ${ROLLOUT_HELP}`);
+  const control = plan.flag.variants.find((v) => v.key === CONTROL_KEY);
+  if (rollout === 'control') return { decision: 'control', variantKey: null, servesAfter: `the control value ${JSON.stringify(control?.value)} to everyone` };
+  if (rollout === 'disable') return { decision: 'disable', variantKey: null, servesAfter: 'nothing: the flag is disabled, so the app shows its fallback default' };
+  const m = rollout.match(/^variant:(.+)$/);
+  if (!m) throw new TypeError(`unknown rollout ${JSON.stringify(rollout)}; use ${ROLLOUT_HELP}`);
+  if (m[1] === CONTROL_KEY) throw new TypeError('rollout variant:control is not a variant; use rollout control');
+  const variant = plan.flag.variants.find((v) => v.key === m[1]);
+  if (!variant) throw new TypeError(`rollout names variant ${JSON.stringify(m[1])}, which is not in the plan`);
+  return { decision: 'variant', variantKey: variant.key, servesAfter: `the ${variant.key} value ${JSON.stringify(variant.value)} to everyone` };
+}
+
+export function buildDiff(plan, phase, { rollout } = {}) {
   assertPhase(phase);
   const shape = validatePlan(plan);
   if (!shape.ok) throw new TypeError(`cannot build a diff from an invalid plan: ${shape.errors.join('; ')}`);
 
   const env = `environment ${plan.environment}`;
+
+  if (phase === 'stop') {
+    const r = parseRollout(plan, rollout);
+    return [{
+      phase,
+      step: 1,
+      action: 'complete_experiment',
+      scope: env,
+      experiment: plan.id,
+      flag: plan.flag.key,
+      rollout: r,
+      requires: 'the experiment is running or paused; its pre-registered stop rule is met (the readout is not not_ready); a variant rollout only if the readout names that variant as the winner candidate',
+      effect: `ends the experiment for good (the OpenAPI spec lists no route to undo it) and removes its rollout override; afterwards the flag serves ${r.servesAfter}`,
+    }];
+  }
 
   if (phase === 'start') {
     return [{
@@ -105,6 +137,11 @@ export function formatDiff(diff, { planSha256, diffSha256: diffHash } = {}) {
       lines.push(`       flag ${e.flag}, primary metric ${JSON.stringify(e.primaryMetric)} expected to ${e.expectedDirection}`);
       lines.push(`       rollout ${e.rolloutPercentage}%, split ${e.split.map((s) => `${s.key} ${s.percentage}%`).join(' / ')}`);
       lines.push(`       hypothesis: ${e.hypothesis}`);
+    } else if (change.action === 'complete_experiment') {
+      lines.push(`  ${change.step}. COMPLETE experiment ${change.experiment} (flag ${change.flag}) in ${change.scope}`);
+      lines.push(`       rollout: ${change.rollout.decision}${change.rollout.variantKey ? ` (${change.rollout.variantKey})` : ''}; afterwards the flag serves ${change.rollout.servesAfter}`);
+      lines.push(`       requires: ${change.requires}`);
+      lines.push(`       effect: ${change.effect}`);
     } else if (change.action === 'start_experiment') {
       lines.push(`  ${change.step}. START experiment ${change.experiment} (flag ${change.flag}) in ${change.scope}`);
       lines.push(`       requires: ${change.requires}`);

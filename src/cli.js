@@ -2,7 +2,7 @@
 // ExperimentPilot command line. Commands are added as each build step lands.
 // Anything not built yet exits with code 1 and says so; nothing pretends to succeed.
 //
-//   npm run pilot -- diff  <planfile> --app <app file> --phase create|start
+//   npm run pilot -- diff  <planfile> --app <app file> --phase create|start|stop [--rollout <choice>]
 //     Runs the guard and prints that phase's exact Flagsmith diff and hashes. Sends nothing.
 //   npm run pilot -- apply <planfile> --app <app file> --phase create|start
 //                          [--apply] [--config flagsmith.json] [--allow-production] [--record <folder>]
@@ -46,10 +46,10 @@ function readInputs(planPath, appPath) {
 }
 
 async function diff(args) {
-  const usage = 'usage: npm run pilot -- diff <planfile> --app <app file> --phase create|start [--allow-production]';
+  const usage = 'usage: npm run pilot -- diff <planfile> --app <app file> --phase create|start|stop [--allow-production] [--rollout control|disable|variant:<key>] (--rollout is required for stop)';
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ['--allow-production'], options: ['--app', '--phase'] });
+    parsed = parseArgs(args, { flags: ['--allow-production'], options: ['--app', '--phase', '--rollout'] });
   } catch (err) {
     console.error(`${err.message}\n${usage}`);
     return 1;
@@ -77,7 +77,13 @@ async function diff(args) {
     for (const v of guard.violations) console.error(`REFUSED (guard): ${v.rule} ${v.reason}`);
     return 1;
   }
-  const changes = buildDiff(inputs.plan, phase);
+  let changes;
+  try {
+    changes = buildDiff(inputs.plan, phase, { rollout: parsed.options['--rollout'] });
+  } catch (err) {
+    console.error(`REFUSED: ${err.message} (pass --rollout for stop)`);
+    return 1;
+  }
   console.log(formatDiff(changes, { planSha256: planSha256(inputs.plan), diffSha256: diffSha256(changes) }));
   return 0;
 }
@@ -86,7 +92,7 @@ async function apply(args) {
   const usage = 'usage: npm run pilot -- apply <planfile> --app <app file> --phase create|start [--apply] [--config flagsmith.json] [--allow-production] [--record <folder>]';
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ['--apply', '--allow-production'], options: ['--app', '--config', '--phase', '--record'] });
+    parsed = parseArgs(args, { flags: ['--apply', '--allow-production'], options: ['--app', '--config', '--phase', '--record', '--rollout'] });
   } catch (err) {
     console.error(`${err.message}\n${usage}`);
     return 1;
@@ -133,6 +139,8 @@ async function apply(args) {
     phase,
     approvalText: approvalOf(phase),
     createApprovalText: phase === 'start' ? approvalOf('create') : undefined,
+    startApprovalText: phase === 'stop' ? approvalOf('start') : undefined,
+    rollout: parsed.options['--rollout'],
     appSource: inputs.appSource,
     apply: parsed.flags['--apply'] === true,
     client,

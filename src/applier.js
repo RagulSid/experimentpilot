@@ -1,15 +1,18 @@
 // Applier: plain code. Order is fixed and cannot be skipped:
 //   phase -> plan shape -> guard (G1-G10, re-run here) -> approval for this phase -> dry run, or apply.
-// Two phases, each with its own approval:
+// Three phases, each with its own approval:
 //   create: flag (enabled), its keyed variations, the metric, the experiment (status created). Never starts.
 //   start:  starts that experiment, once a person has approved START (after deploying the app).
+//   stop:   completes it (POST .../complete/) with the approved rollout, only once the readout says the
+//           pre-registered stop rule is met; a variant rollout only for the readout's winner candidate.
 // Before any write it confirms the environment's name through the API and refuses on mismatch.
 // It never modifies or deletes anything that exists, and stops at the first error, listing
 // what it created.
 import { validatePlan, planSha256 } from './plan.js';
 import { checkPlan } from './guard.js';
 import { verifyApproval } from './approval.js';
-import { PHASES, buildDiff, diffSha256, formatDiff } from './diff.js';
+import { PHASES, buildDiff, diffSha256, formatDiff, parseRollout } from './diff.js';
+import { readout } from './readout.js';
 import { ROUTES } from './flagsmith-client.js';
 
 const CONTROL_KEY = 'control';
@@ -17,6 +20,7 @@ const EXPECTED_DIRECTION = { up: 'increase', down: 'decrease' };
 const ROUTES_USED = {
   create: ['getEnvironment', 'listFeatures', 'listExperiments', 'listMetrics', 'createFeature', 'createVariation', 'createMetric', 'createExperiment'],
   start: ['getEnvironment', 'listExperiments', 'startExperiment', 'getExperiment'],
+  stop: ['getEnvironment', 'listExperiments', 'getExperiment', 'getResults', 'completeExperiment'],
 };
 const VERIFIED_SOURCES = ['recorded', 'swagger'];
 
@@ -61,6 +65,8 @@ export async function applyPlan({
   phase,
   approvalText,
   createApprovalText,
+  startApprovalText,
+  rollout,
   appSource,
   apply = false,
   client,
@@ -68,6 +74,7 @@ export async function applyPlan({
   startedExperimentFlagKeys = [],
   log = () => {},
   routes = ROUTES,
+  now = () => new Date(),
 }) {
   const refused = (stage, reasons) => {
     for (const r of reasons) log(`REFUSED (${stage}): ${r}`);
@@ -75,7 +82,7 @@ export async function applyPlan({
   };
 
   // 0. Phase.
-  if (!PHASES.includes(phase)) return refused('phase', [`phase must be "create" or "start", got ${JSON.stringify(phase)}`]);
+  if (!PHASES.includes(phase)) return refused('phase', [`phase must be "create", "start" or "stop", got ${JSON.stringify(phase)}`]);
 
   // 1. Shape.
   const shape = validatePlan(plan);
@@ -86,14 +93,18 @@ export async function applyPlan({
   if (!guard.ok) return refused('guard', guard.violations.map((v) => `${v.rule} ${v.reason}`));
 
   // 3. Approval for this exact plan, phase and diff. START also needs the CREATE approval.
-  const approval = verifyApproval(plan, approvalText, phase);
+  const approval = verifyApproval(plan, approvalText, phase, { rollout });
   if (!approval.ok) return refused('approval', [approval.reason]);
   if (phase === 'start') {
     const create = verifyApproval(plan, createApprovalText, 'create');
     if (!create.ok) return refused('approval', [`START needs the create approval too: ${create.reason}`]);
   }
+  if (phase === 'stop') {
+    const start = verifyApproval(plan, startApprovalText, 'start');
+    if (!start.ok) return refused('approval', [`STOP needs the start approval too: ${start.reason}`]);
+  }
 
-  const diff = buildDiff(plan, phase);
+  const diff = buildDiff(plan, phase, { rollout });
   const hashes = { planSha256: planSha256(plan), diffSha256: diffSha256(diff) };
 
   // 4a. Dry run unless apply is exactly true.
@@ -111,6 +122,9 @@ export async function applyPlan({
     if (unverified.length) {
       return refused('unverified', [`these Flagsmith routes are neither recorded nor in the OpenAPI spec: ${unverified.join(', ')}. Nothing was sent.`]);
     }
+    if (phase === 'stop' && parseRollout(plan, rollout).decision === 'variant') {
+      return refused('unverified', ['a variant rollout sends rollout_variant, which the OpenAPI spec types as an integer without saying which id it is (we would send the multivariate option id). Verify it on Development first; control and disable need no id. Nothing was sent.']);
+    }
     if (plan.metric.direction !== 'up') {
       return refused('unverified', [`metric direction ${JSON.stringify(plan.metric.direction)} has not been verified against the real API (only "up" was recorded); nothing was sent.`]);
     }
@@ -121,6 +135,7 @@ export async function applyPlan({
     return refused('environment', [`the configured environment is named ${JSON.stringify(environment?.name)}, but the plan says ${JSON.stringify(plan.environment)}; nothing was changed.`]);
   }
 
+  if (phase === 'stop') return applyStop({ plan, client, log, refused, hashes, rollout, now });
   return phase === 'create'
     ? applyCreate({ plan, client, log, refused, hashes })
     : applyStart({ plan, client, log, refused, hashes });
@@ -198,6 +213,51 @@ async function applyStart({ plan, client, log, refused, hashes }) {
     if (check.status !== 'running') throw new StopApply(`experiment ${experiment.id} has status ${JSON.stringify(check.status)} after start, expected "running"`);
     log(`DONE: experiment ${experiment.id} is running.`);
     return { status: 'applied', phase: 'start', created: [], experimentId: experiment.id, experimentStatus: check.status, ...hashes };
+  } catch (err) {
+    return failed(err, [], client, log);
+  }
+}
+
+async function applyStop({ plan, client, log, refused, hashes, rollout, now }) {
+  const r = parseRollout(plan, rollout);
+  const matches = (await client.listExperiments(plan.id)).filter((e) => e.name === plan.id);
+  if (matches.length === 0) return refused('stop', [`no experiment named ${JSON.stringify(plan.id)} in this environment.`]);
+  if (matches.length > 1) return refused('stop', [`${matches.length} experiments are named ${JSON.stringify(plan.id)}; refusing to guess which one to stop.`]);
+  const [experiment] = matches;
+  if (!['running', 'paused'].includes(experiment.status)) {
+    return refused('stop', [`experiment ${experiment.id} has status ${JSON.stringify(experiment.status)}, expected "running" or "paused"; nothing was changed.`]);
+  }
+  if (experiment.feature?.name !== plan.flag.key) {
+    return refused('stop', [`experiment ${experiment.id} is on flag ${JSON.stringify(experiment.feature?.name)}, not ${JSON.stringify(plan.flag.key)}; nothing was changed.`]);
+  }
+
+  // The readout decides whether stopping is allowed: the pre-registered stop rule must be met.
+  const full = await client.getExperiment(experiment.id);
+  const metric = (full.metrics ?? []).find((m) => m.metric_name === plan.metric.name) ?? full.metrics?.[0];
+  if (!metric) return refused('stop', [`experiment ${experiment.id} has no metric; nothing was changed.`]);
+  const ro = readout({ plan, results: await client.getResults(experiment.id), metricId: metric.metric, now: now() });
+  log(`Readout before STOP: ${ro.decision}${ro.winner ? ` (winner candidate ${ro.winner})` : ''}, results as of ${ro.asOf ?? 'unknown'}`);
+  if (ro.decision === 'not_ready') {
+    return refused('stop', [`the pre-registered stop rule is not met yet: ${ro.reasons.join(' ')} Nothing was changed.`]);
+  }
+  if (r.decision === 'variant' && !(ro.decision === 'winner_candidate' && ro.winner === r.variantKey)) {
+    return refused('stop', [`rollout variant:${r.variantKey} needs the readout to name ${r.variantKey} as the winner candidate; it says ${ro.decision}${ro.winner ? ` (${ro.winner})` : ''}. Choose control or disable instead. Nothing was changed.`]);
+  }
+  const body = { rollout_decision: r.decision };
+  if (r.decision === 'variant') {
+    const option = (full.feature?.multivariate_options ?? []).find((o) => o.key === r.variantKey);
+    if (!option) return refused('stop', [`experiment ${experiment.id} has no variation with key ${JSON.stringify(r.variantKey)}; nothing was changed.`]);
+    body.rollout_variant = option.id;
+  }
+
+  try {
+    log(`COMPLETE experiment ${experiment.id} (${plan.id}), rollout ${r.decision}${r.variantKey ? ` ${r.variantKey}` : ''}`);
+    await client.completeExperiment(experiment.id, body);
+    const check = await client.getExperiment(experiment.id);
+    if (check.status !== 'completed') throw new StopApply(`experiment ${experiment.id} has status ${JSON.stringify(check.status)} after complete, expected "completed"`);
+    if (check.rollout_decision !== r.decision) throw new StopApply(`experiment ${experiment.id} reports rollout_decision ${JSON.stringify(check.rollout_decision)}, expected ${JSON.stringify(r.decision)}`);
+    log(`DONE: experiment ${experiment.id} is completed; the flag now serves ${r.servesAfter}.`);
+    return { status: 'applied', phase: 'stop', created: [], experimentId: experiment.id, experimentStatus: check.status, readout: ro.decision, rollout: r, ...hashes };
   } catch (err) {
     return failed(err, [], client, log);
   }

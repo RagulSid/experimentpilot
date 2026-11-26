@@ -29,7 +29,7 @@ export function readApprovalText(planId, phase, dir = APPROVALS_DIR) {
   }
 }
 
-export function createApprovalRecord({ plan, phase, approver, now }) {
+export function createApprovalRecord({ plan, phase, approver, now, rollout }) {
   assertPhase(phase);
   if (!isText(approver)) throw new Error('an approval needs the approver\'s name');
   return {
@@ -38,12 +38,12 @@ export function createApprovalRecord({ plan, phase, approver, now }) {
     approver: approver.trim(),
     approvedAt: now.toISOString(),
     planSha256: planSha256(plan),
-    diffSha256: diffSha256(buildDiff(plan, phase)),
+    diffSha256: diffSha256(buildDiff(plan, phase, { rollout })),
   };
 }
 
 // { ok: true } only if the approval is for this phase, this exact plan and this exact diff.
-export function verifyApproval(plan, approvalText, phase) {
+export function verifyApproval(plan, approvalText, phase, { rollout } = {}) {
   const refuse = (reason) => ({ ok: false, reason });
   try {
     assertPhase(phase);
@@ -81,7 +81,12 @@ export function verifyApproval(plan, approvalText, phase) {
   if (record.planSha256 !== currentPlan) {
     return refuse(`plan changed after approval: planSha256 is ${currentPlan}, approval says ${JSON.stringify(record.planSha256)}`);
   }
-  const currentDiff = diffSha256(buildDiff(plan, phase));
+  let currentDiff;
+  try {
+    currentDiff = diffSha256(buildDiff(plan, phase, { rollout }));
+  } catch (err) {
+    return refuse(err.message);
+  }
   if (record.diffSha256 !== currentDiff) {
     return refuse(`diff changed since approval: diffSha256 is ${currentDiff}, approval says ${JSON.stringify(record.diffSha256)}`);
   }

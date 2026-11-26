@@ -1,23 +1,26 @@
 #!/usr/bin/env node
 // The human approval command, and the ONLY code that writes approval files.
-//   npm run approve -- <planfile> --app <app file> --phase create|start [--allow-production]
+//   npm run approve -- <planfile> --app <app file> --phase create|start|stop [--allow-production]
+//                      [--rollout control|disable|variant:<key>]   (stop only)
 // Checks the plan (shape and guard G1-G10, reading the app file), prints that phase's exact
 // Flagsmith diff, asks for the person's name and a typed "yes", then writes
 // approvals/<planId>.<phase>.json { planId, phase, approver, approvedAt, planSha256, diffSha256 }.
 // START can only be approved after a valid CREATE approval, and its question says the app
-// must already be deployed. It refuses when stdin is not an interactive terminal, so a script
+// must already be deployed. STOP needs a valid START approval and a --rollout choice, which becomes
+// part of the approved diff. It refuses when stdin is not an interactive terminal, so a script
 // or an agent cannot approve by piping text in.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { validatePlan, planSha256 } from './plan.js';
 import { checkPlan } from './guard.js';
-import { PHASES, buildDiff, diffSha256, formatDiff } from './diff.js';
+import { PHASES, ROLLOUT_HELP, buildDiff, diffSha256, formatDiff } from './diff.js';
 import { APPROVALS_DIR, approvalPath, createApprovalRecord, readApprovalText, verifyApproval } from './approval.js';
 
 const QUESTION = {
   create: 'Type yes to approve exactly these changes (nothing is started): ',
   start: 'The app using this flag and event is deployed. Type yes to approve starting the experiment: ',
+  stop: 'The stop rule is met (the applier checks again). Type yes to approve ending the experiment with the rollout above: ',
 };
 
 export async function runApprove({
@@ -25,6 +28,7 @@ export async function runApprove({
   appPath,
   phase,
   allowProduction = false,
+  rollout,
   approvalsDir = APPROVALS_DIR,
   input = process.stdin,
   output = process.stdout,
@@ -35,7 +39,7 @@ export async function runApprove({
   const refuse = (line) => { errorOutput.write(`Refused: ${line}\n`); return 1; };
 
   if (!planPath || !appPath || !PHASES.includes(phase)) {
-    return refuse('usage: npm run approve -- <planfile> --app <app file> --phase create|start [--allow-production]');
+    return refuse(`usage: npm run approve -- <planfile> --app <app file> --phase create|start|stop [--allow-production] [--rollout ${ROLLOUT_HELP}]`);
   }
   if (!input.isTTY) return refuse('approval must be typed by a person at an interactive terminal (stdin is not a terminal).');
 
@@ -61,7 +65,18 @@ export async function runApprove({
     if (!create.ok) return refuse(`START needs a valid create approval first: ${create.reason}`);
   }
 
-  const diff = buildDiff(plan, phase);
+  if (phase === 'stop') {
+    const start = verifyApproval(plan, readApprovalText(plan.id, 'start', approvalsDir), 'start');
+    if (!start.ok) return refuse(`STOP needs a valid start approval first: ${start.reason}`);
+    if (!rollout) return refuse(`STOP needs --rollout (${ROLLOUT_HELP}): what the flag serves after the experiment ends.`);
+  }
+
+  let diff;
+  try {
+    diff = buildDiff(plan, phase, { rollout });
+  } catch (err) {
+    return refuse(err.message);
+  }
   say(formatDiff(diff, { planSha256: planSha256(plan), diffSha256: diffSha256(diff) }));
   say('');
 
@@ -79,7 +94,7 @@ export async function runApprove({
     const answer = (await ask(QUESTION[phase]))?.trim();
     if (answer !== 'yes') return refuse(`answer was ${JSON.stringify(answer ?? '')}, not "yes"; nothing was approved.`);
 
-    const record = createApprovalRecord({ plan, phase, approver: name, now: now() });
+    const record = createApprovalRecord({ plan, phase, approver: name, now: now(), rollout });
     const path = approvalPath(plan.id, phase, approvalsDir);
     const replacing = existsSync(path);
     mkdirSync(approvalsDir, { recursive: true });
@@ -92,9 +107,10 @@ export async function runApprove({
 }
 
 export function parseArgv(argv) {
-  const out = { planPath: undefined, appPath: undefined, phase: undefined, allowProduction: false };
+  const out = { planPath: undefined, appPath: undefined, phase: undefined, allowProduction: false, rollout: undefined };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--allow-production') out.allowProduction = true;
+    else if (argv[i] === '--rollout') out.rollout = argv[++i];
     else if (argv[i] === '--app') out.appPath = argv[++i];
     else if (argv[i] === '--phase') out.phase = argv[++i];
     else if (!out.planPath) out.planPath = argv[i];
