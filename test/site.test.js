@@ -182,7 +182,7 @@ test('index.html: elements, the button, the module script and the honest footer 
 
 test('config.js: committed config is the Production client key and the flag key; Development lives in git-ignored config.local.js', async () => {
   const config = await import('../site/config.js');
-  assert.equal(config.FLAG_KEY, 'pilot_rehearsal_1');
+  assert.equal(config.FLAG_KEY, 'creatordigest_headline');
   assert.equal(config.FLAGSMITH_ENVIRONMENT_NAME, 'Production');
   assert.match(config.FLAGSMITH_ENVIRONMENT_KEY, /^[A-Za-z0-9]{10,40}$/, 'a client-side key, not a server key or admin token');
   assert.match(read('.gitignore'), /^\*\.local\.js$/m);

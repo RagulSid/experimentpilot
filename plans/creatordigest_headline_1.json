@@ -1,0 +1,33 @@
+{
+  "id": "creatordigest_headline_1",
+  "sentence": "Test whether a concrete example headline gets more Get early access clicks than the generic AI headline on the CreatorDigest page, with real visitors in Production.",
+  "hypothesis": "Showing a concrete example line (\"Yesterday's 5 biggest creator posts, in 60 seconds. See today's.\") instead of the generic AI headline increases Get early access clicks.",
+  "environment": "Production",
+  "flag": {
+    "key": "creatordigest_headline",
+    "type": "multivariate",
+    "variants": [
+      { "key": "control", "value": "control" },
+      { "key": "variant_b", "value": "variant_b" }
+    ]
+  },
+  "metric": {
+    "name": "Early access clicks (creatordigest_headline)",
+    "event": "cta_clicked",
+    "direction": "up"
+  },
+  "split": { "control": 50, "variant_b": 50 },
+  "identity": {
+    "source": "visitor id generated on first visit and kept in localStorage",
+    "usedFor": ["flag", "events"],
+    "prefixReal": "web_",
+    "prefixScripted": "sim_"
+  },
+  "stopRule": { "type": "fixedEnd", "value": "2026-11-28T22:00:00+05:30" },
+  "decisionRule": {
+    "primaryMetric": "Early access clicks (creatordigest_headline)",
+    "winProbabilityAtLeast": 0.95,
+    "intervalExcludesZero": true
+  },
+  "traffic": { "real": true, "scripted": false }
+}
