@@ -9,6 +9,22 @@ Entry for **Toggle Wars** (WeMakeDevs x Flagsmith), **Track 02: AI Agents and Fe
 Built step by step during the hacking window (Thu Nov 26 to Sun Nov 29, 2026). This README only describes what exists in the repo at each commit.
 
 - Repo skeleton, MIT licence and CI on Ubuntu and Windows (`npm test`).
+- **Guard** ([src/guard.js](src/guard.js)): plain code, no AI. Checks a plan against rules G1 to G10 and returns every violated rule with a reason. One test per rule in [test/guard.test.js](test/guard.test.js), written first and committed failing, then made to pass.
+
+| Rule | The guard rejects a plan unless |
+|---|---|
+| G1 | the flag is multivariate |
+| G2 | there are at least 2 variations, every key is unique and non-empty, exactly one is the control, and "control" is not reused |
+| G3 | the split sums to 100 and every share is above 0 |
+| G4 | there is exactly one primary metric with name, event and direction, fixed before the start |
+| G5 | one stable id is used for both flag and events; real ids start `web_`, scripted ids start `sim_` |
+| G6 | a stop rule exists (minimum exposures per variation, or a fixed end) and is not "stop when significant" |
+| G7 | no peeking or "decide early" wording appears anywhere in the plan |
+| G8 | the metric's event name equals exactly one string constant in the app code, case included |
+| G9 | the environment is Development (Production only when explicitly allowed) and the flag key is not used by a started experiment |
+| G10 | the app code has a fallback constant equal to the control value |
+
+Limits of the guard today: G8 and G10 read the app file as text and find `const NAME = '...'` declarations, so an event name built at run time, or a fallback without "fallback" in its constant name, is not recognised (the guard then rejects the plan rather than passing it). G7 matches a fixed list of English phrases.
 
 ## Before the start
 
@@ -26,6 +42,9 @@ Work done before the hacking window opened (Thu Nov 26, 8:00 AM IST), disclosed 
 
 **Copied into this repo:**
 - `scripts/crosscheck.sh`: written on Nov 25 as part of the pass/fail checklist and copied unchanged. Its usage comment still shows a Python example from the template it was written against.
+
+**Modelled on the rehearsal, written new on Nov 26:**
+- `fixtures/app/experiment.mjs` follows the shape of the rehearsal's constants file (one event constant, one fallback constant), with a new flag key `pilot_rehearsal_1`. The event name `cta_clicked` and the two headlines in `fixtures/plans/valid-plan.json` are the ones used in the rehearsal.
 
 ## License
 
