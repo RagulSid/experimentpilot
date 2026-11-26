@@ -24,6 +24,7 @@ export const PROVENANCE = {
   'POST mv-options': 'recorded (call 34): body; key writable, feature required',
   'GET experiments (list)': 'recorded (call 31): paginated, plus status_counts',
   'GET metrics (list)': 'recorded (call 32): paginated',
+  'POST complete': 'SWAGGER, not recorded (api_v1_environments_experiments_complete_create): body {rollout_decision, rollout_variant}; 200 with the experiment. GUESSED: 400 when not running or paused',
   'errors (401, 404, 4xx, 5xx bodies)': 'GUESSED: {"detail": ...} bodies',
 };
 
@@ -38,6 +39,7 @@ export async function startFakeFlagsmith({
   failures = {},              // e.g. { 'POST experiments': 400, 'POST experiment-metrics': 503 }
   echoAuthorizationInErrors = false,
   refreshIntervalMs = 5 * 60 * 1000,
+  resultsBody = null,         // replaces the recorded results body (tests that need a clear winner)
 } = {}) {
   const requests = [];
   const state = {
@@ -64,6 +66,8 @@ export async function startFakeFlagsmith({
     if (method === 'POST' && path === `${env}/experiments/`) return ['POST experiments'];
     let m = path.match(new RegExp(`^${env}/experiments/(\\d+)/start/$`));
     if (method === 'POST' && m) return ['POST start', Number(m[1])];
+    m = path.match(new RegExp(`^${env}/experiments/(\\d+)/complete/$`));
+    if (method === 'POST' && m) return ['POST complete', Number(m[1])];
     m = path.match(new RegExp(`^${env}/experiments/(\\d+)/results/refresh/$`));
     if (method === 'POST' && m) return ['POST results/refresh', Number(m[1])];
     m = path.match(new RegExp(`^${env}/experiments/(\\d+)/results/$`));
@@ -158,7 +162,15 @@ export async function startFakeFlagsmith({
       case 'GET experiment': {
         const exp = state.experiments.find((e) => e.id === id);
         if (!exp) return send(res, 404, { detail: 'Not found.' });
-        return send(res, 200, { ...recorded('experiment-get.response.json'), name: exp.name, status: exp.status });
+        return send(res, 200, { ...recorded('experiment-get.response.json'), name: exp.name, status: exp.status, ended_at: exp.ended_at ?? null, rollout_decision: exp.rollout_decision ?? null, rollout_variant: exp.rollout_variant ?? null });
+      }
+      case 'POST complete': {
+        const exp = state.experiments.find((e) => e.id === id);
+        if (!exp) return send(res, 404, { detail: 'Not found.' });
+        if (!['running', 'paused'].includes(exp.status)) return send(res, 400, { detail: `Experiment is ${exp.status}.` });
+        if (!['control', 'variant', 'disable'].includes(body?.rollout_decision)) return send(res, 400, { rollout_decision: ['This field is required.'] });
+        Object.assign(exp, { status: 'completed', ended_at: new Date().toISOString(), rollout_decision: body.rollout_decision, rollout_variant: body.rollout_variant ?? null });
+        return send(res, 200, { ...recorded('experiment-get.response.json'), name: exp.name, status: exp.status, ended_at: exp.ended_at, rollout_decision: exp.rollout_decision, rollout_variant: exp.rollout_variant });
       }
       case 'POST results/refresh': {
         const now = Date.now();
@@ -169,7 +181,7 @@ export async function startFakeFlagsmith({
         return send(res, 202);
       }
       case 'GET results':
-        return send(res, 200, recorded('results-get.response.json'));
+        return send(res, 200, resultsBody ?? recorded('results-get.response.json'));
       default:
         return send(res, 404, { detail: 'Not found.' });
     }
