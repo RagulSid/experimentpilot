@@ -15,7 +15,7 @@ import { ROUTES } from './flagsmith-client.js';
 const CONTROL_KEY = 'control';
 const EXPECTED_DIRECTION = { up: 'increase', down: 'decrease' };
 const ROUTES_USED = {
-  create: ['getEnvironment', 'listFeatures', 'listExperiments', 'createFeature', 'createVariation', 'createMetric', 'createExperiment'],
+  create: ['getEnvironment', 'listFeatures', 'listExperiments', 'listMetrics', 'createFeature', 'createVariation', 'createMetric', 'createExperiment'],
   start: ['getEnvironment', 'listExperiments', 'startExperiment', 'getExperiment'],
 };
 const VERIFIED_SOURCES = ['recorded', 'swagger'];
@@ -134,6 +134,10 @@ async function applyCreate({ plan, client, log, refused, hashes }) {
   const experiments = await client.listExperiments(plan.id);
   if (experiments.some((e) => e.name === plan.id)) {
     return refused('exists', [`experiment ${JSON.stringify(plan.id)} already exists; ExperimentPilot never modifies an existing experiment.`]);
+  }
+  const metrics = await client.listMetrics(plan.metric.name);
+  if (metrics.some((m) => m.name === plan.metric.name)) {
+    return refused('exists', [`metric ${JSON.stringify(plan.metric.name)} already exists in this environment; give the plan's metric a new name (nothing was changed).`]);
   }
 
   const created = [];
