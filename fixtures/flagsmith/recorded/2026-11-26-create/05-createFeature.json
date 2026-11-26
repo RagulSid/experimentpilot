@@ -1,0 +1,38 @@
+{
+  "route": "createFeature",
+  "method": "POST",
+  "path": "api/v1/projects/55988/features/",
+  "query": null,
+  "status": 201,
+  "request": {
+    "name": "pilot_rehearsal_1",
+    "type": "MULTIVARIATE",
+    "initial_value": "control",
+    "default_enabled": true
+  },
+  "response": {
+    "id": 305157,
+    "name": "pilot_rehearsal_1",
+    "type": "MULTIVARIATE",
+    "default_enabled": true,
+    "initial_value": "control",
+    "created_date": "2026-11-26T08:44:37.803400Z",
+    "description": null,
+    "tags": [],
+    "multivariate_options": [],
+    "is_archived": false,
+    "owners": [],
+    "group_owners": [],
+    "uuid": "5cbc394f-ebd6-4ec4-ac8e-711babf551ce",
+    "project": 55988,
+    "environment_feature_state": null,
+    "segment_feature_state": null,
+    "num_segment_overrides": 0,
+    "num_identity_overrides": null,
+    "is_num_identity_overrides_complete": true,
+    "is_server_key_only": false,
+    "last_modified_in_any_environment": null,
+    "last_modified_in_current_environment": null,
+    "metadata": []
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "route": "createExperiment",
+  "method": "POST",
+  "path": "api/v1/environments/<env key>/experiments/",
+  "query": null,
+  "status": 201,
+  "request": {
+    "feature": 305157,
+    "name": "pilot_rehearsal_1",
+    "hypothesis": "Showing \"See today's digest before you sign up\" instead of \"Your creator digest, summarized by AI\" increases Get started clicks.",
+    "metrics": [
+      {
+        "metric": 577,
+        "expected_direction": "increase"
+      }
+    ],
+    "experiment_rollout": {
+      "enabled": true,
+      "rollout_percentage": 100,
+      "feature_state_value": {
+        "type": "string",
+        "value": "control"
+      },
+      "multivariate_feature_state_values": [
+        {
+          "multivariate_feature_option": 37083,
+          "percentage_allocation": 50
+        }
+      ]
+    }
+  },
+  "response": {
+    "id": 579,
+    "feature": 305157,
+    "name": "pilot_rehearsal_1",
+    "hypothesis": "Showing \"See today's digest before you sign up\" instead of \"Your creator digest, summarized by AI\" increases Get started clicks.",
+    "status": "created",
+    "created_at": "2026-11-26T08:44:39.995767Z",
+    "updated_at": "2026-11-26T08:44:40.028442Z",
+    "started_at": null,
+    "ended_at": null,
+    "rollout_decision": null,
+    "rollout_variant": null
+  }
+}
