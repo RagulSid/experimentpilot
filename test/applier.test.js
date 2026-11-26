@@ -258,7 +258,7 @@ test('a 5xx in the middle stops at once: no further calls, nothing deleted, crea
     assert.deepEqual(r.created.map((c) => [c.what, c.id]), [['flag', 303389], ['variation', 36697]]);
     assert.match(r.reasons[0], /failed with 500/);
     assert.match(r.note, /nothing was rolled back or deleted/i);
-    assert.deepEqual(fake.requests.map((q) => q.route), CREATE_ROUTES.slice(0, 6));
+    assert.deepEqual(fake.requests.map((q) => q.route), CREATE_ROUTES.slice(0, CREATE_ROUTES.indexOf('POST experiment-metrics') + 1));
     for (const text of [...logs, ...r.reasons, r.note]) noSecrets(text);
   } finally { await fake.close(); }
 });
