@@ -1,0 +1,29 @@
+{
+  "route": "getEnvironment",
+  "method": "GET",
+  "path": "api/v1/environments/<env key>/",
+  "query": null,
+  "status": 200,
+  "request": null,
+  "response": {
+    "id": 119870,
+    "uuid": "359fc2bc-c710-49bd-997e-5cc818404767",
+    "name": "Production",
+    "api_key": "<env key>",
+    "description": null,
+    "project": 55988,
+    "minimum_change_request_approvals": null,
+    "allow_client_traits": true,
+    "banner_text": null,
+    "banner_colour": null,
+    "hide_disabled_flags": null,
+    "use_mv_v2_evaluation": true,
+    "use_identity_composite_key_for_hashing": true,
+    "hide_sensitive_data": false,
+    "use_v2_feature_versioning": true,
+    "use_identity_overrides_in_local_eval": true,
+    "is_creating": false,
+    "metadata": [],
+    "total_segment_overrides": 0
+  }
+}

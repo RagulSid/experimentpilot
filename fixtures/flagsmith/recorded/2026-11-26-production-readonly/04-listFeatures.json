@@ -1,0 +1,16 @@
+{
+  "route": "listFeatures",
+  "method": "GET",
+  "path": "api/v1/projects/55988/features/",
+  "query": {
+    "search": "creatordigest_headline"
+  },
+  "status": 200,
+  "request": null,
+  "response": {
+    "count": 0,
+    "next": null,
+    "previous": null,
+    "results": []
+  }
+}
