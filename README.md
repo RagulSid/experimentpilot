@@ -43,16 +43,37 @@ Limits of the guard today: G8 and G10 read the app file as text and find `const 
   - `npm run pilot -- diff <planfile> --app <file> --phase create|start` prints a phase's diff and hashes without sending anything.
 - **The flag is created enabled.** A Flagsmith flag belongs to the whole project, so it also appears in Production, enabled and serving the control value. Only Development gets the experiment. The CREATE diff says this before anyone approves.
 - **First real run (Thu Nov 26, 14:14 IST, Development only):** after a person approved CREATE (`approvals/pilot_rehearsal_1.create.json`), the applier confirmed the environment was named Development. It then found no existing flag, experiment or metric with these names, and created flag `pilot_rehearsal_1` (305157) with keyed variation `variant_b` (37083), metric "Get started clicks (pilot_rehearsal_1)" (577) and experiment 579, status `created`. **Not started.** Every call is saved, redacted, in [fixtures/flagsmith/recorded/2026-11-26-create/](fixtures/flagsmith/recorded/2026-11-26-create/).
+- **START on Development (Thu Nov 26, 16:12 IST):** after a person approved START in their own terminal (`approvals/pilot_rehearsal_1.start.json`, diff sha256 `3144d47d…6ec3`), the applier confirmed the environment name, found exactly one experiment named `pilot_rehearsal_1` with status `created`, started it and read it back as `running` (rollout 100%, variant_b 50%). Recorded in [fixtures/flagsmith/recorded/2026-11-26-start/](fixtures/flagsmith/recorded/2026-11-26-start/).
+- **First readout on Development (Thu Nov 26, 16:14 IST): `no_clear_winner`.** Source: Flagsmith results for experiment 579, refreshed and recorded in [fixtures/flagsmith/recorded/2026-11-26-start-results/](fixtures/flagsmith/recorded/2026-11-26-start-results/). **All of it is scripted `sim_` traffic** with made-up rates (400 visitors): control 34/217 (15.7%), variant_b 29/183 (15.8%), 95% interval for the lift [−45.0%, +47.2%], chance to beat control 51.9%. The stop rule (150 per variation) was met; the interval includes zero and 51.9% is below 95%, so no winner. These numbers say nothing about real users. Experiment 579's stored hypothesis still names an earlier variant_b headline; the rehearsal page shows the new copy.
 - **Test page** ([site/](site/)): CreatorDigest, a static page with no build step. It loads the Flagsmith JS SDK 12.6.0 from a vendored copy ([site/vendor/](site/vendor/), BSD-3-Clause).
-  - Flag `pilot_rehearsal_1` picks the headline: control "Your creator digest, summarized by AI", or variant_b "Yesterday's 5 biggest creator posts, in 60 seconds. See today's." with an example line.
+  - The flag picks the headline: control "Your creator digest, summarized by AI", or variant_b "Yesterday's 5 biggest creator posts, in 60 seconds. See today's." with an example line.
   - An unknown value, an unreachable Flagsmith, or no answer within 2 s shows the control copy (`FALLBACK_VALUE`).
   - Each browser gets one `web_` visitor id, used for `identify()`, the exposure (`getExperimentFlag` only) and the `cta_clicked` event (`CTA_EVENT`).
-  - Committed `config.js` holds the Production client-side key, which is public by design. The Development key lives in `site/config.local.js`, which is git-ignored and never published.
+  - Committed `config.js` holds the Production client-side key (public by design) and the real flag, `creatordigest_headline`. The git-ignored `site/config.local.js` overrides both for local runs with the Development key and the rehearsal flag `pilot_rehearsal_1`; it is never published (the Pages workflow checks).
   - Run it locally with `npm run site` (port 5173, or `PORT=5174`).
 - **Readout** ([src/readout.js](src/readout.js)): `npm run pilot -- readout <planfile> [--refresh]` prints `not_ready` (stop rule unmet; no numbers to act on), `no_clear_winner` or `winner_candidate`, each with its reasons. It labels scripted traffic, because Flagsmith's results do not separate `sim_` from `web_` visitors. A test checks a hand-calculated example: 15/150 against 22/150 gives a lift of 7/15, the same as Flagsmith's.
-- **Scripted traffic** ([scripts/simulate.mjs](scripts/simulate.mjs)): `sim_` visitors at made-up rates (control 10%, variant_b 14%). It runs only against the Development key bound in `flagsmith.json`, and reuses the page's flag key and event constant.
-- **Hosting:** [.github/workflows/pages.yml](.github/workflows/pages.yml) publishes `site/` to GitHub Pages on push to `main`.
+- **Scripted traffic** ([scripts/simulate.mjs](scripts/simulate.mjs)): `sim_` visitors at made-up rates (control 10%, variant_b 14%). It runs only against the Development key bound in `flagsmith.json`, takes the Development flag key from `config.local.js` (never the real flag), and reuses the page's event constant.
+- **Real experiment plan, not created yet:** [plans/creatordigest_headline_1.json](plans/creatordigest_headline_1.json). Production, flag `creatordigest_headline` (control / variant_b, 50/50), metric "Early access clicks (creatordigest_headline)" on `cta_clicked`, higher is better, real `web_` visitors only (no scripted traffic), fixed end Sat Nov 28, 22:00 IST, winner only if the chance to win is at least 95% and the interval excludes zero. The guard refuses it (G9) unless `--allow-production` is given; `diff`, `approve` and `apply` all take that flag, and a Production diff starts with a `PRODUCTION:` warning line. Only its dry-run diff has been produced (plan sha256 `4013bb29…ab26`, CREATE diff sha256 `18549af0…4369`). No approval exists for it.
+- **Hosting:** [.github/workflows/pages.yml](.github/workflows/pages.yml) publishes `site/` to GitHub Pages. It runs only when started by hand, because Pages is not switched on for the repo yet.
 - **Where each Flagsmith call comes from:** every route the client uses has now been recorded working for real (call numbers in [src/flagsmith-client.js](src/flagsmith-client.js) and [fixtures/flagsmith/recorded/](fixtures/flagsmith/recorded/)). Routes added in Step 4b were first checked against Flagsmith's public OpenAPI spec (operationIds kept in the code). The applier refuses to send a route that is neither recorded nor in the spec to a real Flagsmith host.
+
+## How this was built: AI-assisted
+
+This project was built with an AI coding agent (Claude Code). Plainly:
+
+- **The AI wrote** the code, tests, workflows and this README, working in small checkpoints, and ran the commands (tests, dry runs, and the Flagsmith calls after each human approval).
+- **Ragul (the human) decided** the product, the track, the rules (guard rules G1 to G10 and the non-negotiables), and each open question the AI raised (for example: create the flag enabled, two separate approvals, commit the Production client key, no Production writes until the real experiment).
+- **Ragul reviewed** each checkpoint report (what changed, the exact command and its output, what was still unverified) before the next step was allowed, and approved every install, the push and each Flagsmith write.
+- **Ragul approved every Flagsmith change in a terminal, by typing.** `src/approve.js` refuses unless a person is typing at a terminal; when the AI tried to pipe "yes" into it to demonstrate the refusal, the agent's permission check blocked it. The approval files in [approvals/](approvals/) carry the approver's name and the plan and diff hashes, and the applier refuses without them.
+- **Plain code, not the AI, makes the safety decisions:** the guard, the approval check and the readout's decision are deterministic code with tests. The AI cannot bypass them at run time.
+
+| What | Written by | Checked by |
+|---|---|---|
+| Requirements, guard rules G1 to G10, decisions | Ragul | — |
+| Code, tests, workflows, README | AI | tests (failing first, then passing), CI on Ubuntu and Windows, Ragul's checkpoint reviews |
+| Each Flagsmith write (CREATE, START) | applier code, run by the AI | Ragul's typed approval of the exact diff, matched by hash |
+| Recorded Flagsmith responses | Flagsmith | secret scan before each commit and push |
+| Numbers in this README | Flagsmith results (source stated next to each) | readout code; real or scripted traffic stated each time |
 
 ## Before the start
 

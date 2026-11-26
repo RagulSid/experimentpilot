@@ -2,10 +2,9 @@ name: Deploy site to GitHub Pages
 
 # Publishes site/ (the CreatorDigest test page) as a static site. The page uses the committed
 # config.js (Production client-side key); config.local.js is git-ignored and never published.
+# Manual only until GitHub Pages is switched on for the repo (Settings > Pages > Source: GitHub
+# Actions); a push trigger before that would fail at configure-pages on every push.
 on:
-  push:
-    branches: [main]
-    paths: ['site/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
