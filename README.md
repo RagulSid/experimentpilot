@@ -28,9 +28,20 @@ Limits of the guard today: G8 and G10 read the app file as text and find `const 
 
 - **Plan and hash** ([src/plan.js](src/plan.js)): checks the plan file's shape, writes canonical JSON (keys sorted, no whitespace, UTF-8) and its `planSha256`. The expected hashes in the tests were computed separately in Python.
 - **Diff** ([src/diff.js](src/diff.js)): the exact Flagsmith changes in order (create flag, create metric, create experiment, start) and their `diffSha256`. It also says that a new flag appears in every environment of the project.
-- **Approval gate** ([src/approve.js](src/approve.js), [src/approval.js](src/approval.js)): `npm run approve -- <planfile>` prints the diff, asks for a name and a typed `yes`, and writes `approvals/<planId>.json` with both hashes. It refuses unless a person is typing at a terminal. No other file in `src/` writes approvals, and a test checks this. The applier refuses when the approval is missing or malformed, has no approver, or belongs to another plan, and when the plan or the diff has changed since approval.
-- **Applier** ([src/applier.js](src/applier.js)): `npm run pilot -- apply <planfile> --app <file>` re-runs the guard, checks the approval, and does a **dry run** unless `--apply` is given. With `--apply` it refuses if the flag or experiment already exists, never modifies or deletes anything, and stops at the first error, listing what it created. The admin token is read only from `FLAGSMITH_ADMIN_TOKEN`, sent only as `Authorization: Api-Key <token>`, and redacted from logs and errors.
-- **Tested only against a local fake Flagsmith so far**, built from real responses recorded on Nov 25 ([fixtures/flagsmith/recorded/](fixtures/flagsmith/recorded/)). Three routes have not yet been seen working against the real API: create flag, list flags, list experiments. The applier refuses to send them to a real Flagsmith host until they are recorded.
+- **Two approvals, each for its own diff** ([src/approve.js](src/approve.js), [src/approval.js](src/approval.js)):
+  - **CREATE** makes the flag, its keyed variations, the metric and the experiment, and does not start it. `npm run approve -- <planfile> --app <app file> --phase create`
+  - **START** starts the experiment. A person approves it only after the app using the flag is deployed, and only once a valid CREATE approval exists. `... --phase start`
+  - Each run checks the plan with the guard, prints that phase's diff, asks for a name and a typed `yes`, and writes `approvals/<planId>.<phase>.json` with both hashes.
+  - It refuses unless a person is typing at a terminal. No other file in `src/` writes approvals, and a test checks this. Approval files are committed as evidence.
+  - The applier refuses when an approval is missing or malformed, has no approver, or is for another plan or phase, and when the plan or the diff has changed since approval.
+- **Applier** ([src/applier.js](src/applier.js)): `npm run pilot -- apply <planfile> --app <file> --phase create|start` re-runs the guard and checks that phase's approval. It does a **dry run** unless `--apply` is given. With `--apply`:
+  - It reads the environment through the API first and refuses if its name differs from the plan's.
+  - It refuses if the flag, the experiment or a metric with the same name already exists.
+  - It never modifies or deletes anything, and stops at the first error, listing what it created.
+  - The admin token is read only from `FLAGSMITH_ADMIN_TOKEN`, sent only as `Authorization: Api-Key <token>`, and redacted from logs, errors and recordings. `--record <folder>` saves each call, redacted.
+  - `npm run pilot -- diff <planfile> --app <file> --phase create|start` prints a phase's diff and hashes without sending anything.
+- **The flag is created enabled.** A Flagsmith flag belongs to the whole project, so it also appears in Production, enabled and serving the control value. Only Development gets the experiment. The CREATE diff says this before anyone approves.
+- **Where each Flagsmith call comes from:** calls are either recorded for real (call numbers in [fixtures/flagsmith/recorded/](fixtures/flagsmith/recorded/)) or taken from Flagsmith's public OpenAPI spec (operationIds in [src/flagsmith-client.js](src/flagsmith-client.js)). The applier refuses to send anything else to a real Flagsmith host.
 
 ## Before the start
 

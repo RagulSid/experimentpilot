@@ -1,0 +1,51 @@
+{
+  "id": "pilot_rehearsal_1",
+  "sentence": "Test whether a headline that offers a sample digest gets more Get started clicks than the AI-summary headline.",
+  "hypothesis": "Showing \"See today's digest before you sign up\" instead of \"Your creator digest, summarized by AI\" increases Get started clicks.",
+  "environment": "Development",
+  "flag": {
+    "key": "pilot_rehearsal_1",
+    "type": "multivariate",
+    "variants": [
+      {
+        "key": "control",
+        "value": "control"
+      },
+      {
+        "key": "variant_b",
+        "value": "variant_b"
+      }
+    ]
+  },
+  "metric": {
+    "name": "Get started clicks (pilot_rehearsal_1)",
+    "event": "cta_clicked",
+    "direction": "up"
+  },
+  "split": {
+    "control": 50,
+    "variant_b": 50
+  },
+  "identity": {
+    "source": "visitor id generated on first visit and kept in localStorage",
+    "usedFor": [
+      "flag",
+      "events"
+    ],
+    "prefixReal": "web_",
+    "prefixScripted": "sim_"
+  },
+  "stopRule": {
+    "type": "minExposuresPerVariant",
+    "value": 150
+  },
+  "decisionRule": {
+    "primaryMetric": "Get started clicks (pilot_rehearsal_1)",
+    "winProbabilityAtLeast": 0.95,
+    "intervalExcludesZero": true
+  },
+  "traffic": {
+    "real": true,
+    "scripted": true
+  }
+}
