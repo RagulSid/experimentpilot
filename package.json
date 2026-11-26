@@ -13,5 +13,8 @@
     "approve": "node src/approve.js",
     "check": "node src/cli.js check",
     "pilot": "node src/cli.js"
+  },
+  "devDependencies": {
+    "@flagsmith/flagsmith": "12.6.0"
   }
 }
