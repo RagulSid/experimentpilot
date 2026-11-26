@@ -191,13 +191,26 @@ export async function proposePlan({
   return withVerdict({ status: 'proposed', stage: 'done', reasons: [], plan, guard, path });
 }
 
+// Fields of the CLI's result envelope that describe the person's account, not the answer.
+const ACCOUNT_FIELDS = ['credential_expires_at'];
+
+// The agent's stdout with account fields blanked. Everything else, including the reply, is kept as is.
+export function redactAgentStdout(stdout) {
+  let o;
+  try { o = JSON.parse(stdout); } catch { return stdout; }
+  if (!o || typeof o !== 'object') return stdout;
+  let changed = false;
+  for (const k of ACCOUNT_FIELDS) if (k in o) { o[k] = '<redacted>'; changed = true; }
+  return changed ? JSON.stringify(o) : stdout;
+}
+
 // Saves one planner run for the record: what was asked, the agent's raw output and the verdict.
 // Only environment variable NAMES are saved, never values.
 export function recordPlannerRun(dir, { sentence, app, command, args, envKeys, startedExperimentFlagKeys, result }) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'request.json'), `${JSON.stringify({ sentence, app, command, args, envKeys, cwd: '<empty temporary folder outside the repo>', startedExperimentFlagKeys, ms: result.raw.ms, exitCode: result.raw.code, timedOut: result.raw.timedOut }, null, 2)}\n`);
   writeFileSync(join(dir, 'prompt.txt'), result.prompt);
-  writeFileSync(join(dir, 'stdout.txt'), result.raw.stdout ?? '');
+  writeFileSync(join(dir, 'stdout.txt'), redactAgentStdout(result.raw.stdout ?? ''));
   writeFileSync(join(dir, 'stderr.txt'), result.raw.stderr ?? '');
   writeFileSync(join(dir, 'verdict.json'), `${JSON.stringify(result.verdict, null, 2)}\n`);
 }

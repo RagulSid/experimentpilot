@@ -1,0 +1,10 @@
+{
+  "status": "proposed",
+  "stage": "done",
+  "reasons": [],
+  "guard": {
+    "ok": true,
+    "violations": []
+  },
+  "planSha256": "90e26822ed5eb4cbf0ba31f3c121b6e9ed8417c81af5e5f3859307b26185960c"
+}
