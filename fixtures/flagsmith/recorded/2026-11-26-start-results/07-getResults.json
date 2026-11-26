@@ -1,0 +1,68 @@
+{
+  "route": "getResults",
+  "method": "GET",
+  "path": "api/v1/environments/<env key>/experiments/579/results/",
+  "query": null,
+  "status": 200,
+  "request": null,
+  "response": {
+    "results": {
+      "as_of": "2026-11-26T10:44:32.465644Z",
+      "last_error_at": null,
+      "refresh_requested_at": "2026-11-26T10:44:32.416897Z",
+      "payload": {
+        "metrics": [
+          {
+            "variants": {
+              "control": {
+                "n": 217,
+                "sum": 34,
+                "sum_squares": 34
+              },
+              "variant_b": {
+                "n": 183,
+                "sum": 29,
+                "sum_squares": 29
+              }
+            },
+            "inference": {
+              "variant_b": {
+                "lift": 0.011411121825779632,
+                "ci_low": -0.4496499663328308,
+                "ci_high": 0.47247220998439005,
+                "chance_to_win": 0.5193445099924946
+              }
+            },
+            "metric_id": 577,
+            "conversions_timeseries": {
+              "points": [
+                {
+                  "bucket": "2026-11-26T10:00:00+00:00",
+                  "converted_identities": {
+                    "control": 34,
+                    "variant_b": 29
+                  }
+                }
+              ],
+              "granularity": "hour"
+            }
+          }
+        ],
+        "srm_p_value": null,
+        "exposures_timeseries": {
+          "points": [
+            {
+              "bucket": "2026-11-26T10:00:00+00:00",
+              "new_identities": {
+                "control": 217,
+                "variant_b": 183
+              }
+            }
+          ],
+          "granularity": "hour"
+        }
+      },
+      "is_final": false
+    }
+  }
+}
