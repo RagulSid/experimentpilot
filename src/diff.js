@@ -85,7 +85,9 @@ export function diffSha256(diff) {
 // One screen of plain text for the person approving.
 export function formatDiff(diff, { planSha256, diffSha256: diffHash } = {}) {
   const phase = diff[0]?.phase ?? 'unknown';
-  const lines = [`Phase ${phase.toUpperCase()}: changes ExperimentPilot will make in Flagsmith, in this order:`, ''];
+  const production = diff.some((c) => c.scope === 'environment Production');
+  const lines = production ? ['PRODUCTION: these changes reach real visitors of the live page.', ''] : [];
+  lines.push(`Phase ${phase.toUpperCase()}: changes ExperimentPilot will make in Flagsmith, in this order:`, '');
   for (const change of diff) {
     if (change.action === 'create_flag') {
       const f = change.flag;

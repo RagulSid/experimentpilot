@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The human approval command, and the ONLY code that writes approval files.
-//   npm run approve -- <planfile> --app <app file> --phase create|start
+//   npm run approve -- <planfile> --app <app file> --phase create|start [--allow-production]
 // Checks the plan (shape and guard G1-G10, reading the app file), prints that phase's exact
 // Flagsmith diff, asks for the person's name and a typed "yes", then writes
 // approvals/<planId>.<phase>.json { planId, phase, approver, approvedAt, planSha256, diffSha256 }.
@@ -24,6 +24,7 @@ export async function runApprove({
   planPath,
   appPath,
   phase,
+  allowProduction = false,
   approvalsDir = APPROVALS_DIR,
   input = process.stdin,
   output = process.stdout,
@@ -34,7 +35,7 @@ export async function runApprove({
   const refuse = (line) => { errorOutput.write(`Refused: ${line}\n`); return 1; };
 
   if (!planPath || !appPath || !PHASES.includes(phase)) {
-    return refuse('usage: npm run approve -- <planfile> --app <app file> --phase create|start');
+    return refuse('usage: npm run approve -- <planfile> --app <app file> --phase create|start [--allow-production]');
   }
   if (!input.isTTY) return refuse('approval must be typed by a person at an interactive terminal (stdin is not a terminal).');
 
@@ -52,7 +53,7 @@ export async function runApprove({
   }
   const shape = validatePlan(plan);
   if (!shape.ok) return refuse(`plan file is invalid:\n  - ${shape.errors.join('\n  - ')}`);
-  const guard = checkPlan(plan, { appSource });
+  const guard = checkPlan(plan, { appSource, allowProduction: allowProduction === true });
   if (!guard.ok) return refuse(`the guard rejects this plan:\n  - ${guard.violations.map((v) => `${v.rule} ${v.reason}`).join('\n  - ')}`);
 
   if (phase === 'start') {
@@ -90,10 +91,11 @@ export async function runApprove({
   }
 }
 
-function parseArgv(argv) {
-  const out = { planPath: undefined, appPath: undefined, phase: undefined };
+export function parseArgv(argv) {
+  const out = { planPath: undefined, appPath: undefined, phase: undefined, allowProduction: false };
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--app') out.appPath = argv[++i];
+    if (argv[i] === '--allow-production') out.allowProduction = true;
+    else if (argv[i] === '--app') out.appPath = argv[++i];
     else if (argv[i] === '--phase') out.phase = argv[++i];
     else if (!out.planPath) out.planPath = argv[i];
   }

@@ -41,10 +41,10 @@ function readInputs(planPath, appPath) {
 }
 
 async function diff(args) {
-  const usage = 'usage: npm run pilot -- diff <planfile> --app <app file> --phase create|start';
+  const usage = 'usage: npm run pilot -- diff <planfile> --app <app file> --phase create|start [--allow-production]';
   let parsed;
   try {
-    parsed = parseArgs(args, { options: ['--app', '--phase'] });
+    parsed = parseArgs(args, { flags: ['--allow-production'], options: ['--app', '--phase'] });
   } catch (err) {
     console.error(`${err.message}\n${usage}`);
     return 1;
@@ -67,7 +67,7 @@ async function diff(args) {
     for (const e of shape.errors) console.error(`REFUSED (plan): ${e}`);
     return 1;
   }
-  const guard = checkPlan(inputs.plan, { appSource: inputs.appSource });
+  const guard = checkPlan(inputs.plan, { appSource: inputs.appSource, allowProduction: parsed.flags['--allow-production'] === true });
   if (!guard.ok) {
     for (const v of guard.violations) console.error(`REFUSED (guard): ${v.rule} ${v.reason}`);
     return 1;

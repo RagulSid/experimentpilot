@@ -7,7 +7,6 @@
 import { readFileSync } from 'node:fs';
 import { createFlagsmithInstance } from '@flagsmith/flagsmith/isomorphic';
 import { CTA_EVENT } from '../site/app.js';
-import { FLAG_KEY } from '../site/config.js';
 import { simIds, checkSimTarget, converts, MADE_UP_RATES } from '../src/simulate.js';
 
 const args = process.argv.slice(2);
@@ -31,6 +30,14 @@ try {
   checkSimTarget(localConfig, bound);
 } catch (err) {
   console.error(`Refusing: ${err.message}`);
+  process.exit(1);
+}
+
+// The Development rehearsal flag lives in config.local.js; the committed config.js names the real
+// (Production) flag, which scripted traffic must never touch.
+const FLAG_KEY = localConfig.FLAG_KEY;
+if (!FLAG_KEY) {
+  console.error('Refusing: site/config.local.js has no FLAG_KEY (the Development rehearsal flag).');
   process.exit(1);
 }
 
