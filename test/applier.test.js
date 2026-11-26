@@ -42,7 +42,7 @@ const noSecrets = (text) => {
 };
 const writes = (fake) => fake.requests.filter((q) => q.method !== 'GET');
 
-const CREATE_ROUTES = ['GET environment', 'GET features (search)', 'GET experiments (list)', 'POST features', 'POST mv-options', 'POST experiment-metrics', 'POST experiments'];
+const CREATE_ROUTES = ['GET environment', 'GET features (search)', 'GET experiments (list)', 'GET metrics (list)', 'POST features', 'POST mv-options', 'POST experiment-metrics', 'POST experiments'];
 
 // --- order and refusals before any network -------------------------------------
 
@@ -219,6 +219,18 @@ test('refuses if an experiment with the same name already exists, and changes no
     const r = await applyPlan({ plan: plan(), phase: 'create', approvalText: approve(plan()), appSource: APP_SOURCE, apply: true, client, log });
     assert.equal(r.stage, 'exists');
     assert.match(r.reasons[0], /experiment "pilot_rehearsal_1" already exists/);
+    assert.deepEqual(writes(fake), []);
+  } finally { await fake.close(); }
+});
+
+test('refuses if a metric with the same name already exists, and changes nothing', async () => {
+  const applyPlan = await load();
+  const { fake, client, log } = await fakeAndClient({ existingMetrics: [{ id: 422, name: 'Get started clicks', definition: { version: 1, event: 'cta_clicked' } }] });
+  try {
+    const r = await applyPlan({ plan: plan(), phase: 'create', approvalText: approve(plan()), appSource: APP_SOURCE, apply: true, client, log });
+    assert.equal(r.stage, 'exists');
+    assert.match(r.reasons[0], /metric "Get started clicks" already exists/);
+    assert.deepEqual(fake.requests.find((q) => q.route === 'GET metrics (list)').query, { q: 'Get started clicks' });
     assert.deepEqual(writes(fake), []);
   } finally { await fake.close(); }
 });

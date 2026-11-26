@@ -156,7 +156,7 @@ test('every route states its source: recorded (with call number) or swagger (wit
     if (r.source === 'swagger') assert.match(r.operationId, /^[a-z0-9_]+$/, `${name} names its OpenAPI operationId`);
   }
   assert.deepEqual(bySource('guessed'), []);
-  for (const name of ['getEnvironment', 'listFeatures', 'createFeature', 'createVariation', 'listExperiments']) {
+  for (const name of ['getEnvironment', 'listFeatures', 'createFeature', 'createVariation', 'listExperiments', 'listMetrics']) {
     assert.ok(name in ROUTES, `${name} exists`);
   }
 });

@@ -21,6 +21,7 @@ export const PROVENANCE = {
   'POST features': 'SWAGGER create_feature (ListFeature); nested option keys are read-only, so no options here',
   'POST mv-options': 'SWAGGER MultivariateFeatureOption: key writable, feature required; values from call 23',
   'GET experiments (list)': 'SWAGGER list_experiments: ?q= searches experiment or feature name, paginated',
+  'GET metrics (list)': 'SWAGGER list_metrics: ?q=, paginated',
   'errors (401, 404, 4xx, 5xx bodies)': 'GUESSED: {"detail": ...} bodies',
 };
 
@@ -31,6 +32,7 @@ export async function startFakeFlagsmith({
   projectId,
   existingFeatures = [],
   existingExperiments = [],
+  existingMetrics = [],
   failures = {},              // e.g. { 'POST experiments': 400, 'POST experiment-metrics': 503 }
   echoAuthorizationInErrors = false,
   refreshIntervalMs = 5 * 60 * 1000,
@@ -39,6 +41,7 @@ export async function startFakeFlagsmith({
   const state = {
     features: existingFeatures.map((f) => ({ ...f })),
     experiments: existingExperiments.map((e) => ({ ...e })),
+    metrics: existingMetrics.map((m) => ({ ...m })),
     feature: null,
     lastRefreshAt: null,
   };
@@ -54,6 +57,7 @@ export async function startFakeFlagsmith({
     if (method === 'GET' && path === `${env}/`) return ['GET environment'];
     if (method === 'GET' && path === `${env}/warehouse-connections/`) return ['GET warehouse-connections'];
     if (method === 'POST' && path === `${env}/experiment-metrics/`) return ['POST experiment-metrics'];
+    if (method === 'GET' && path === `${env}/experiment-metrics/`) return ['GET metrics (list)'];
     if (method === 'GET' && path === `${env}/experiments/`) return ['GET experiments (list)'];
     if (method === 'POST' && path === `${env}/experiments/`) return ['POST experiments'];
     let m = path.match(new RegExp(`^${env}/experiments/(\\d+)/start/$`));
@@ -94,8 +98,16 @@ export async function startFakeFlagsmith({
         return send(res, 200, { id: 119869, uuid: '00000000-0000-4000-8000-000000119869', name: environmentName, api_key: environmentKey, description: null, project: projectId });
       case 'GET warehouse-connections':
         return send(res, 200, recorded('warehouse-connections-get.response.json'));
-      case 'POST experiment-metrics':
-        return send(res, 201, { ...recorded('metric-create.response.json'), name: body.name, direction: body.direction, definition: body.definition });
+      case 'POST experiment-metrics': {
+        const metric = { ...recorded('metric-create.response.json'), name: body.name, direction: body.direction, definition: body.definition };
+        state.metrics.push(metric);
+        return send(res, 201, metric);
+      }
+      case 'GET metrics (list)': {
+        const q = url.searchParams.get('q') ?? '';
+        const results = state.metrics.filter((m) => m.name.includes(q));
+        return send(res, 200, { count: results.length, next: null, previous: null, results });
+      }
       case 'GET features (search)': {
         const search = url.searchParams.get('search') ?? '';
         const results = state.features.filter((f) => f.name.includes(search));
