@@ -1,0 +1,30 @@
+{
+  "route": "createMetric",
+  "method": "POST",
+  "path": "api/v1/environments/<env key>/experiment-metrics/",
+  "query": null,
+  "status": 201,
+  "request": {
+    "name": "Early access clicks (creatordigest_headline)",
+    "aggregation": "occurrence",
+    "direction": "up",
+    "definition": {
+      "version": 1,
+      "event": "cta_clicked"
+    }
+  },
+  "response": {
+    "id": 639,
+    "name": "Early access clicks (creatordigest_headline)",
+    "description": "",
+    "aggregation": "occurrence",
+    "direction": "up",
+    "definition": {
+      "version": 1,
+      "event": "cta_clicked"
+    },
+    "experiments": [],
+    "created_at": "2026-11-26T13:07:18.333817Z",
+    "updated_at": "2026-11-26T13:07:18.333829Z"
+  }
+}

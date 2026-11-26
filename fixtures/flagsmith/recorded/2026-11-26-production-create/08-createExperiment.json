@@ -1,0 +1,45 @@
+{
+  "route": "createExperiment",
+  "method": "POST",
+  "path": "api/v1/environments/<env key>/experiments/",
+  "query": null,
+  "status": 201,
+  "request": {
+    "feature": 305552,
+    "name": "creatordigest_headline_1",
+    "hypothesis": "Showing a concrete example line (\"Yesterday's 5 biggest creator posts, in 60 seconds. See today's.\") instead of the generic AI headline increases Get early access clicks.",
+    "metrics": [
+      {
+        "metric": 639,
+        "expected_direction": "increase"
+      }
+    ],
+    "experiment_rollout": {
+      "enabled": true,
+      "rollout_percentage": 100,
+      "feature_state_value": {
+        "type": "string",
+        "value": "control"
+      },
+      "multivariate_feature_state_values": [
+        {
+          "multivariate_feature_option": 37266,
+          "percentage_allocation": 50
+        }
+      ]
+    }
+  },
+  "response": {
+    "id": 650,
+    "feature": 305552,
+    "name": "creatordigest_headline_1",
+    "hypothesis": "Showing a concrete example line (\"Yesterday's 5 biggest creator posts, in 60 seconds. See today's.\") instead of the generic AI headline increases Get early access clicks.",
+    "status": "created",
+    "created_at": "2026-11-26T13:07:20.647028Z",
+    "updated_at": "2026-11-26T13:07:20.708681Z",
+    "started_at": null,
+    "ended_at": null,
+    "rollout_decision": null,
+    "rollout_variant": null
+  }
+}

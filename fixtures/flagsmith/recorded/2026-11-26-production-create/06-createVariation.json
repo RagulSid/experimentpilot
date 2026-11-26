@@ -1,0 +1,25 @@
+{
+  "route": "createVariation",
+  "method": "POST",
+  "path": "api/v1/projects/55988/features/305552/mv-options/",
+  "query": null,
+  "status": 201,
+  "request": {
+    "type": "unicode",
+    "string_value": "variant_b",
+    "default_percentage_allocation": 0,
+    "key": "variant_b",
+    "feature": 305552
+  },
+  "response": {
+    "id": 37266,
+    "uuid": "38b66971-03f1-4270-acbc-03a1bb7ee613",
+    "type": "unicode",
+    "integer_value": null,
+    "string_value": "variant_b",
+    "boolean_value": null,
+    "default_percentage_allocation": 0,
+    "key": "variant_b",
+    "feature": 305552
+  }
+}

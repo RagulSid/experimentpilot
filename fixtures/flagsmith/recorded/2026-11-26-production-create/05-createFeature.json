@@ -1,0 +1,38 @@
+{
+  "route": "createFeature",
+  "method": "POST",
+  "path": "api/v1/projects/55988/features/",
+  "query": null,
+  "status": 201,
+  "request": {
+    "name": "creatordigest_headline",
+    "type": "MULTIVARIATE",
+    "initial_value": "control",
+    "default_enabled": true
+  },
+  "response": {
+    "id": 305552,
+    "name": "creatordigest_headline",
+    "type": "MULTIVARIATE",
+    "default_enabled": true,
+    "initial_value": "control",
+    "created_date": "2026-11-26T13:07:14.494224Z",
+    "description": null,
+    "tags": [],
+    "multivariate_options": [],
+    "is_archived": false,
+    "owners": [],
+    "group_owners": [],
+    "uuid": "79016e76-2103-48c7-a739-e9382bf879b4",
+    "project": 55988,
+    "environment_feature_state": null,
+    "segment_feature_state": null,
+    "num_segment_overrides": 0,
+    "num_identity_overrides": null,
+    "is_num_identity_overrides_complete": true,
+    "is_server_key_only": false,
+    "last_modified_in_any_environment": null,
+    "last_modified_in_current_environment": null,
+    "metadata": []
+  }
+}
