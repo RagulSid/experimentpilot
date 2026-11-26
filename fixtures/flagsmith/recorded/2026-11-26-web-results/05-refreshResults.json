@@ -1,0 +1,9 @@
+{
+  "route": "refreshResults",
+  "method": "POST",
+  "path": "api/v1/environments/<env key>/experiments/579/results/refresh/",
+  "query": null,
+  "status": 202,
+  "request": null,
+  "response": ""
+}

@@ -153,3 +153,76 @@ test('recorded Development run after START (calls 41-48, scripted sim_ only): no
   assert.ok(r.variants.variant_b.chanceToWin < 0.95);
   assert.match(r.trafficNote, /sim_/);
 });
+
+// Freshness after a refresh is judged from Flagsmith's own timestamps, never this machine's clock.
+// Recorded 2026-11-26 18:23 IST (2026-11-26-web-results): Flagsmith recomputed 70 ms after the
+// request (refresh_requested_at 12:53:08.245Z, as_of 12:53:08.317Z), but the old check compared
+// as_of with the local clock and called the fresh numbers stale.
+function stubClient(beforeBody, afterBodies) {
+  const calls = [];
+  let refreshed = false;
+  let polls = 0;
+  const exp = { id: 579, name: 'pilot_rehearsal_1', status: 'running', metrics: [{ metric: 577, metric_name: 'Get started clicks (pilot_rehearsal_1)' }] };
+  return {
+    calls,
+    listExperiments: async () => { calls.push('list'); return [exp]; },
+    getExperiment: async () => { calls.push('get'); return exp; },
+    refreshResults: async () => { calls.push('refresh'); refreshed = true; return null; },
+    getResults: async () => {
+      calls.push('results');
+      if (!refreshed) return beforeBody;
+      const body = afterBodies[Math.min(polls, afterBodies.length - 1)];
+      polls += 1;
+      return body;
+    },
+  };
+}
+const webBody = (n) => read(`fixtures/flagsmith/recorded/2026-11-26-web-results/${n}-getResults.json`).response;
+
+test('refresh freshness: a new refresh_requested_at with as_of at or after it is fresh, even if the local clock is ahead', async () => {
+  const { fetchAndRead } = await load();
+  const client = stubClient(webBody('04'), [webBody('06')]);
+  let sleeps = 0;
+  const r = await fetchAndRead({
+    plan: read('plans/pilot_rehearsal_1.json'), client, refresh: true,
+    now: () => new Date('2026-11-26T12:53:15Z'), // 7 s ahead of Flagsmith's as_of
+    sleep: async () => { sleeps += 1; }, waitMs: 90_000, pollMs: 10_000,
+  });
+  assert.equal(r.refreshed, true);
+  assert.equal(r.stale, false);
+  assert.equal(sleeps, 1, 'stops polling as soon as the recomputed body arrives');
+  assert.deepEqual(r.readout.exposures, { control: 217, variant_b: 187 });
+});
+
+test('refresh freshness: refresh_requested_at unchanged after every poll means stale', async () => {
+  const { fetchAndRead } = await load();
+  const before = webBody('04');
+  const client = stubClient(before, [before]);
+  const r = await fetchAndRead({
+    plan: read('plans/pilot_rehearsal_1.json'), client, refresh: true,
+    now: () => new Date('2026-11-26T12:53:15Z'), sleep: async () => {}, waitMs: 30_000, pollMs: 10_000,
+  });
+  assert.equal(r.stale, true);
+});
+
+test('refresh freshness: first ever refresh ({"results": null} before) is fresh once as_of >= refresh_requested_at', async () => {
+  const { fetchAndRead } = await load();
+  const client = stubClient({ results: null }, [read('fixtures/flagsmith/recorded/2026-11-26-start-results/06-getResults.json').response]);
+  const r = await fetchAndRead({
+    plan: read('plans/pilot_rehearsal_1.json'), client, refresh: true,
+    now: () => new Date('2026-11-26T10:44:40Z'), sleep: async () => {}, waitMs: 90_000, pollMs: 10_000,
+  });
+  assert.equal(r.stale, false);
+});
+
+test('refresh freshness: requested but not yet computed (as_of before refresh_requested_at) is not fresh', async () => {
+  const { fetchAndRead } = await load();
+  const pending = structuredClone(webBody('06'));
+  pending.results.as_of = '2026-11-26T10:44:32.465644Z';
+  const client = stubClient(webBody('04'), [pending]);
+  const r = await fetchAndRead({
+    plan: read('plans/pilot_rehearsal_1.json'), client, refresh: true,
+    now: () => new Date('2026-11-26T12:53:15Z'), sleep: async () => {}, waitMs: 20_000, pollMs: 10_000,
+  });
+  assert.equal(r.stale, true);
+});
