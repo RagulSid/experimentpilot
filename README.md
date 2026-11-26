@@ -35,6 +35,35 @@ The live test page is https://ragulsid.github.io/experimentpilot/. It runs the r
 
 Experiments are created and started through the Admin API only. No MCP server is used.
 
+## For judges
+
+Where to see each judging item. Everything below can be checked from this repo; the live page and the Flagsmith project are the only things outside it.
+
+| Item | Where to see it |
+|---|---|
+| **Use of Flagsmith** | [How Flagsmith is used](#how-flagsmith-is-used) maps every Flagsmith job to its code and a recording. The real experiment (650, Production) was created and started by the applier: [production-create](fixtures/flagsmith/recorded/2026-11-26-production-create/), [production-start](fixtures/flagsmith/recorded/2026-11-26-production-start/). A rehearsal experiment (579, Development) was taken through the whole life cycle, ending with STOP: [dev-stop](fixtures/flagsmith/recorded/2026-11-26-dev-stop/). The page uses the JS SDK: [site/app.js](site/app.js), live at https://ragulsid.github.io/experimentpilot/. |
+| **Impact** | A person describes an experiment in one sentence; one command per phase does the Flagsmith work in the right order, and plain code refuses unsafe plans, unapproved changes and early winners. Measured so far: the AI planner drafted a full plan in 15.0 s ([recorded run](fixtures/planner/recorded/2026-11-26-dev-headline/)), and `npm run demo` runs the whole story in about 1 s. **Not measured yet:** the same experiment set up by hand, so no time-saved figure is claimed. |
+| **Creativity** | The AI only proposes; it never touches Flagsmith ([src/planner.js](src/planner.js): no tools, no credentials). A guard of plain code (G1 to G10, [src/guard.js](src/guard.js)) rejects unsafe plans; each phase needs a person's approval bound to a hash of the exact change ([approvals/](approvals/)); the readout refuses to name a winner before the pre-registered stop rule ([src/readout.js](src/readout.js)). See refusals in section 2 and 3 of `npm run demo`. |
+| **Demo video** | Not recorded yet. Until then, `npm run demo` shows the same story offline. |
+| **Track 02: CLI, API or MCP** | Admin API for every change: [src/flagsmith-client.js](src/flagsmith-client.js) lists each route with the real call where it was first seen working. The Flagsmith CLI v2.0.0 was used for the rehearsal and to read the Production client key (listed in [Before the start](#before-the-start)). **The Flagsmith MCP server was not used: it cannot start experiments**, and ExperimentPilot needs to start and complete them. |
+| **Track 02: saves real time** | One command per phase replaces the dashboard steps (flag with keyed variation, metric, experiment, start, results, complete), with checks a person would otherwise do by eye: environment name, existing names, stop rule. A by-hand timing on the same experiment has not been done yet (see Impact). |
+| **Track 02: a human approves changes** | `node src/approve.js <plan> --app <file> --phase create\|start\|stop` refuses unless a person types at a terminal ([src/approve.js](src/approve.js)); the applier refuses without a matching approval ([src/applier.js](src/applier.js)). Real approvals, each typed by Ragul: [approvals/](approvals/). Tampered approvals refused: section 3 of `npm run demo`, and [test/approval.test.js](test/approval.test.js). |
+| **Track 02: clear output** | The diff a person approves (`npm run pilot -- diff <plan> --app <file> --phase create`), the applier's line-by-line log, and the readout (`npm run pilot -- readout <plan>`) with its decision and reasons. All three appear in `npm run demo`. |
+
+## Remove it and this breaks
+
+What stops working without each Flagsmith call.
+
+| Flagsmith call | Without it |
+|---|---|
+| **Create** the flag and its keyed variation (`POST features`, `POST mv-options`) | The page has no flag to read, so every visitor gets the fallback headline. A variation without a key records no exposures, so nothing could be measured. |
+| **Create** the metric on `cta_clicked` (`POST experiment-metrics`) | Clicks still arrive as events, but Flagsmith computes no result for them. |
+| **Create** the experiment (`POST experiments`) | There is nothing to start: no split, no exposures, no results. |
+| **Start** (`POST experiments/{id}/start/`) | The experiment stays `created`: every visitor gets the control value and `getExperimentFlag` records no exposure. |
+| **Results** (`GET .../results/`, `POST .../results/refresh/`) | The readout has no numbers, so it cannot say `not_ready`, `no_clear_winner` or `winner_candidate`. STOP cannot run either: it reads the results first to check that the stop rule is met. |
+| **Complete** (`POST experiments/{id}/complete/`) | The experiment never ends: the 50/50 split stays on and the flag never goes back to one value for everyone. |
+| **Warehouse check** (`GET warehouse-connections/`, run by hand before starting: calls 27 and 51) | Flagsmith computes results only from its warehouse. Without the check, a missing connection would show up only at readout time, after real traffic had already been spent. |
+
 
 ## Status
 
@@ -146,6 +175,15 @@ Work done before the hacking window opened (Thu Nov 26, 8:00 AM IST), disclosed 
 **Modelled on the rehearsal, written new on Nov 26:**
 - `scripts/serve-site.mjs` and `scripts/simulate.mjs` follow the shape of the rehearsal's local server and traffic script (same SDK calls, `sim_` ids, made-up rates); `site/` follows the rehearsal page's structure (fallback headline, `web_` id, one event constant) with new copy.
 - `fixtures/app/experiment.mjs` follows the shape of the rehearsal's constants file (one event constant, one fallback constant), with a new flag key `pilot_rehearsal_1`. The event name `cta_clicked` and the two headlines in `fixtures/plans/valid-plan.json` are the ones used in the rehearsal.
+
+## Honest limits
+
+- **The flag lock after completion is unknown.** No API response and nothing in Flagsmith's OpenAPI spec mentions a lock. Testing it would mean trying to change the flag, which was not done. What was seen: completing experiment 579 saved the flag's values as a new version and removed the experiment's split.
+- **A variant rollout is unproven on real Flagsmith.** STOP with `control` ran for real; `variant` needs `rollout_variant`, which the spec types as an integer without saying which id. The applier refuses a variant rollout on real Flagsmith until it is tried on Development.
+- **Production traffic is small and includes our own test loads.** The first Production readout (Thu Nov 26) had 3 visitors, all from the author's own test windows. Flagsmith results do not list visitor ids, so test loads cannot be removed from the numbers afterwards.
+- **The guard checks the plan and the app's source text, not live traffic.** It cannot see a deployed page that differs from the repo, scripted traffic sent with a `web_` id, or events sent by something other than the page.
+- **The admin key is organisation-wide.** The Production block (guard rule G9 and `--allow-production`) is code in this repo, not a permission boundary: anyone holding the key could change Production by other means.
+- **Time saved is not measured yet**, and the demo video is not recorded yet.
 
 ## License
 
