@@ -26,6 +26,12 @@ Built step by step during the hacking window (Thu Nov 26 to Sun Nov 29, 2026). T
 
 Limits of the guard today: G8 and G10 read the app file as text and find `const NAME = '...'` declarations, so an event name built at run time, or a fallback without "fallback" in its constant name, is not recognised (the guard then rejects the plan rather than passing it). G7 matches a fixed list of English phrases.
 
+- **Plan and hash** ([src/plan.js](src/plan.js)): checks the plan file's shape, writes canonical JSON (keys sorted, no whitespace, UTF-8) and its `planSha256`. The expected hashes in the tests were computed separately in Python.
+- **Diff** ([src/diff.js](src/diff.js)): the exact Flagsmith changes in order (create flag, create metric, create experiment, start) and their `diffSha256`. It also says that a new flag appears in every environment of the project.
+- **Approval gate** ([src/approve.js](src/approve.js), [src/approval.js](src/approval.js)): `npm run approve -- <planfile>` prints the diff, asks for a name and a typed `yes`, and writes `approvals/<planId>.json` with both hashes. It refuses unless a person is typing at a terminal. No other file in `src/` writes approvals, and a test checks this. The applier refuses when the approval is missing or malformed, has no approver, or belongs to another plan, and when the plan or the diff has changed since approval.
+- **Applier** ([src/applier.js](src/applier.js)): `npm run pilot -- apply <planfile> --app <file>` re-runs the guard, checks the approval, and does a **dry run** unless `--apply` is given. With `--apply` it refuses if the flag or experiment already exists, never modifies or deletes anything, and stops at the first error, listing what it created. The admin token is read only from `FLAGSMITH_ADMIN_TOKEN`, sent only as `Authorization: Api-Key <token>`, and redacted from logs and errors.
+- **Tested only against a local fake Flagsmith so far**, built from real responses recorded on Nov 25 ([fixtures/flagsmith/recorded/](fixtures/flagsmith/recorded/)). Three routes have not yet been seen working against the real API: create flag, list flags, list experiments. The applier refuses to send them to a real Flagsmith host until they are recorded.
+
 ## Before the start
 
 Work done before the hacking window opened (Thu Nov 26, 8:00 AM IST), disclosed in full. All of it happened on **Wed Nov 25, 2026**, and none of it is code in this repo unless listed under "Copied into this repo".
@@ -42,6 +48,8 @@ Work done before the hacking window opened (Thu Nov 26, 8:00 AM IST), disclosed 
 
 **Copied into this repo:**
 - `scripts/crosscheck.sh`: written on Nov 25 as part of the pass/fail checklist and copied unchanged. Its usage comment still shows a Python example from the template it was written against.
+
+- `fixtures/flagsmith/recorded/`: real Flagsmith request and response bodies recorded during the Nov 25 rehearsal (environment key redacted), saved as test fixtures on Nov 26 without changing any values. The results body comes from scripted traffic.
 
 **Modelled on the rehearsal, written new on Nov 26:**
 - `fixtures/app/experiment.mjs` follows the shape of the rehearsal's constants file (one event constant, one fallback constant), with a new flag key `pilot_rehearsal_1`. The event name `cta_clicked` and the two headlines in `fixtures/plans/valid-plan.json` are the ones used in the rehearsal.
