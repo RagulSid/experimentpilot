@@ -230,3 +230,18 @@ test('recorded real planner run: raw agent output and guard verdict are saved, a
   }
 });
 
+
+test('recordPlannerRun: saves the raw output but blanks account fields (credential expiry); env values are never saved', async () => {
+  const { recordPlannerRun } = await load();
+  const dir = mkdtempSync(join(tmpdir(), 'ep-record-'));
+  const stdout = envelope(JSON.stringify(newPlan()), { credential_expires_at: '2026-12-01T00:00:00Z', session_id: 's1' });
+  recordPlannerRun(dir, {
+    sentence: 's', app: 'site/app.js', command: 'claude', args: ['-p'], envKeys: ['PATH'], startedExperimentFlagKeys: [],
+    result: { prompt: 'p', raw: { stdout, stderr: '', code: 0, timedOut: false, ms: 1 }, verdict: { status: 'proposed' } },
+  });
+  const saved = JSON.parse(readFileSync(join(dir, 'stdout.txt'), 'utf8'));
+  assert.equal(saved.credential_expires_at, '<redacted>');
+  assert.equal(saved.session_id, 's1');
+  assert.equal(saved.result, JSON.parse(stdout).result, 'the reply itself is kept byte for byte');
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'request.json'), 'utf8')).envKeys, ['PATH']);
+});
