@@ -29,7 +29,7 @@ export const ROUTES = {
   refreshResults: { method: 'POST', path: 'api/v1/environments/{env}/experiments/{id}/results/refresh/', source: 'recorded', call: 25, note: 'empty body; status code not recorded' },
   getResults: { method: 'GET', path: 'api/v1/environments/{env}/experiments/{id}/results/', source: 'recorded', call: 26 },
   getWarehouseConnections: { method: 'GET', path: 'api/v1/environments/{env}/warehouse-connections/', source: 'recorded', call: 27 },
-  completeExperiment: { method: 'POST', path: 'api/v1/environments/{env}/experiments/{id}/complete/', source: 'swagger', operationId: 'api_v1_environments_experiments_complete_create', note: 'body {rollout_decision: control|variant|disable, rollout_variant?: integer}; 200 with the experiment; not yet called for real' },
+  completeExperiment: { method: 'POST', path: 'api/v1/environments/{env}/experiments/{id}/complete/', source: 'recorded', call: 86, operationId: 'api_v1_environments_experiments_complete_create', note: 'body {rollout_decision: control|variant|disable, rollout_variant?: integer}; 200 with the experiment (status completed, ended_at, rollout_decision). Only rollout_decision control has been recorded' },
 };
 
 export class FlagsmithApiError extends Error {

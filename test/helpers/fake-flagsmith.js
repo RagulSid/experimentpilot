@@ -24,7 +24,7 @@ export const PROVENANCE = {
   'POST mv-options': 'recorded (call 34): body; key writable, feature required',
   'GET experiments (list)': 'recorded (call 31): paginated, plus status_counts',
   'GET metrics (list)': 'recorded (call 32): paginated',
-  'POST complete': 'SWAGGER, not recorded (api_v1_environments_experiments_complete_create): body {rollout_decision, rollout_variant}; 200 with the experiment. GUESSED: 400 when not running or paused',
+  'POST complete': 'recorded (call 86, rollout control): 200 with the experiment, status completed, ended_at, rollout_decision. GUESSED: 400 when not running or paused; variant rollout not recorded',
   'errors (401, 404, 4xx, 5xx bodies)': 'GUESSED: {"detail": ...} bodies',
 };
 

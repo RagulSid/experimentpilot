@@ -151,8 +151,8 @@ test('a wrong token gets the server 401 back as an error', async () => {
   } finally { await fake.close(); }
 });
 
-// One exception, named here: completeExperiment (STOP) is from the OpenAPI spec and has not been called for real.
-const SWAGGER_ONLY = { completeExperiment: 'api_v1_environments_experiments_complete_create' };
+// Swagger-only routes would be named here. None left: completeExperiment (STOP) was recorded on Nov 26 (call 86).
+const SWAGGER_ONLY = {};
 
 test('every route has been seen working for real (source recorded, with its call number), except the named swagger-only ones', async () => {
   const { ROUTES } = await load();
