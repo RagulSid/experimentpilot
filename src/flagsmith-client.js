@@ -7,7 +7,8 @@
 // Each route says where its shape comes from:
 //   "recorded" = a real call in notes/flagsmith-calls.md (call number given)
 //   "swagger"  = the public OpenAPI spec, api.flagsmith.com/api/v1/swagger.json (operationId given),
-//                not yet seen working for real
+//                not yet seen working for real. Calls 29-34 (real CREATE run, Nov 26) moved
+//                every such route to "recorded"; their operationIds are kept for reference
 //   "guessed"  = neither; the applier refuses to send these to a real Flagsmith host
 
 export const ADMIN_API_BASE_URL = 'https://api.flagsmith.com/';
@@ -15,12 +16,12 @@ export const TOKEN_ENV = 'FLAGSMITH_ADMIN_TOKEN';
 export const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 export const ROUTES = {
-  getEnvironment: { method: 'GET', path: 'api/v1/environments/{env}/', source: 'swagger', operationId: 'api_v1_environments_retrieve' },
-  listFeatures: { method: 'GET', path: 'api/v1/projects/{project}/features/', source: 'swagger', operationId: 'list_project_features', note: '?search=, paginated' },
-  createFeature: { method: 'POST', path: 'api/v1/projects/{project}/features/', source: 'swagger', operationId: 'create_feature', note: 'nested option keys are read-only, so variations are added separately' },
-  createVariation: { method: 'POST', path: 'api/v1/projects/{project}/features/{feature}/mv-options/', source: 'swagger', operationId: 'create_feature_multivariate_option', note: 'key writable, feature required' },
-  listExperiments: { method: 'GET', path: 'api/v1/environments/{env}/experiments/', source: 'swagger', operationId: 'list_experiments', note: '?q= searches experiment or feature name, paginated' },
-  listMetrics: { method: 'GET', path: 'api/v1/environments/{env}/experiment-metrics/', source: 'swagger', operationId: 'list_metrics', note: '?q=, paginated' },
+  getEnvironment: { method: 'GET', path: 'api/v1/environments/{env}/', source: 'recorded', call: 29, operationId: 'api_v1_environments_retrieve' },
+  listFeatures: { method: 'GET', path: 'api/v1/projects/{project}/features/', source: 'recorded', call: 30, operationId: 'list_project_features', note: '?search=, paginated' },
+  createFeature: { method: 'POST', path: 'api/v1/projects/{project}/features/', source: 'recorded', call: 33, operationId: 'create_feature', note: 'nested option keys are read-only, so variations are added separately' },
+  createVariation: { method: 'POST', path: 'api/v1/projects/{project}/features/{feature}/mv-options/', source: 'recorded', call: 34, operationId: 'create_feature_multivariate_option', note: 'key writable, feature required' },
+  listExperiments: { method: 'GET', path: 'api/v1/environments/{env}/experiments/', source: 'recorded', call: 31, operationId: 'list_experiments', note: '?q= searches experiment or feature name, paginated' },
+  listMetrics: { method: 'GET', path: 'api/v1/environments/{env}/experiment-metrics/', source: 'recorded', call: 32, operationId: 'list_metrics', note: '?q=, paginated' },
   createMetric: { method: 'POST', path: 'api/v1/environments/{env}/experiment-metrics/', source: 'recorded', call: 19 },
   createExperiment: { method: 'POST', path: 'api/v1/environments/{env}/experiments/', source: 'recorded', call: 21 },
   startExperiment: { method: 'POST', path: 'api/v1/environments/{env}/experiments/{id}/start/', source: 'recorded', call: 23 },

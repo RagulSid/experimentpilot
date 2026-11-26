@@ -1,11 +1,13 @@
 // A fake Flagsmith Admin API for tests (node:http, loopback only).
 // Responses come from the real bodies recorded on Nov 25 (fixtures/flagsmith/recorded/).
-// Routes never called for real yet follow the public OpenAPI spec
-// (api.flagsmith.com/api/v1/swagger.json, read Nov 26) and are marked SWAGGER below.
+// Routes first called for real on Nov 26 (calls 29-34) replay that run's bodies
+// (fixtures/flagsmith/recorded/2026-11-26-create/).
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 
 const recorded = (name) => JSON.parse(readFileSync(new URL(`../../fixtures/flagsmith/recorded/${name}`, import.meta.url), 'utf8'));
+// Real CREATE run on Development, Nov 26 (calls 29-36), saved by `pilot apply --record`.
+const real = (name) => recorded(`2026-11-26-create/${name}`).response;
 
 export const PROVENANCE = {
   'GET warehouse-connections': 'recorded (call 27): body',
@@ -16,12 +18,12 @@ export const PROVENANCE = {
   'POST results/refresh': 'recorded (call 25): empty body. GUESSED: status 202 (code not recorded; Swagger says 200)',
   'GET results': 'recorded (call 26): body',
   'refresh rate limit': 'DOCUMENTED: at most once every 5 minutes. GUESSED: status 429 and its body',
-  'GET environment': 'SWAGGER api_v1_environments_retrieve: fields id, uuid, name, api_key, project',
-  'GET features (search)': 'SWAGGER list_project_features: ?search=, paginated {count, next, previous, results}',
-  'POST features': 'SWAGGER create_feature (ListFeature); nested option keys are read-only, so no options here',
-  'POST mv-options': 'SWAGGER MultivariateFeatureOption: key writable, feature required; values from call 23',
-  'GET experiments (list)': 'SWAGGER list_experiments: ?q= searches experiment or feature name, paginated',
-  'GET metrics (list)': 'SWAGGER list_metrics: ?q=, paginated',
+  'GET environment': 'recorded (call 29): body; name, api_key and project follow the fake options',
+  'GET features (search)': 'recorded (call 30): paginated {count, next, previous, results}',
+  'POST features': 'recorded (call 33): body; ids kept from the Nov 25 fixtures so older tests stay stable',
+  'POST mv-options': 'recorded (call 34): body; key writable, feature required',
+  'GET experiments (list)': 'recorded (call 31): paginated, plus status_counts',
+  'GET metrics (list)': 'recorded (call 32): paginated',
   'errors (401, 404, 4xx, 5xx bodies)': 'GUESSED: {"detail": ...} bodies',
 };
 
@@ -95,7 +97,7 @@ export async function startFakeFlagsmith({
 
     switch (name) {
       case 'GET environment':
-        return send(res, 200, { id: 119869, uuid: '00000000-0000-4000-8000-000000119869', name: environmentName, api_key: environmentKey, description: null, project: projectId });
+        return send(res, 200, { ...real('01-getEnvironment.json'), name: environmentName, api_key: environmentKey, project: projectId });
       case 'GET warehouse-connections':
         return send(res, 200, recorded('warehouse-connections-get.response.json'));
       case 'POST experiment-metrics': {
@@ -115,6 +117,7 @@ export async function startFakeFlagsmith({
       }
       case 'POST features': {
         state.feature = {
+          ...real('05-createFeature.json'),
           id: 303389, name: body.name, type: body.type ?? 'STANDARD', default_enabled: body.default_enabled ?? false,
           initial_value: body.initial_value ?? null, description: body.description ?? null, multivariate_options: [], project: projectId,
         };
@@ -125,8 +128,9 @@ export async function startFakeFlagsmith({
         if (!state.feature || state.feature.id !== id || body.feature !== id) return send(res, 400, { detail: 'Invalid feature.' });
         const n = state.feature.multivariate_options.length;
         const option = {
+          ...real('06-createVariation.json'),
           id: 36697 + n, uuid: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, type: body.type,
-          integer_value: null, string_value: body.string_value, boolean_value: null,
+          string_value: body.string_value,
           default_percentage_allocation: body.default_percentage_allocation ?? 0, key: body.key ?? null, feature: id,
         };
         state.feature.multivariate_options.push(option);
@@ -136,7 +140,9 @@ export async function startFakeFlagsmith({
       case 'GET experiments (list)': {
         const q = url.searchParams.get('q') ?? '';
         const results = state.experiments.filter((e) => e.name.includes(q) || (e.feature?.name ?? '').includes(q));
-        return send(res, 200, { count: results.length, next: null, previous: null, results });
+        const statusCounts = { created: 0, running: 0, paused: 0, completed: 0 };
+        for (const e of results) if (e.status in statusCounts) statusCounts[e.status] += 1;
+        return send(res, 200, { count: results.length, next: null, previous: null, results, status_counts: statusCounts });
       }
       case 'POST experiments': {
         const created = { ...recorded('experiment-create.response.json'), feature: body.feature, name: body.name, hypothesis: body.hypothesis, status: 'created' };
