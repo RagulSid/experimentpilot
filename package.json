@@ -11,10 +11,11 @@
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
     "approve": "node src/approve.js",
-    "check": "node src/cli.js check",
+    "check": "node scripts/check.mjs",
     "pilot": "node src/cli.js",
     "site": "node scripts/serve-site.mjs",
-    "simulate": "node scripts/simulate.mjs"
+    "simulate": "node scripts/simulate.mjs",
+    "demo": "node scripts/demo.mjs"
   },
   "devDependencies": {
     "@flagsmith/flagsmith": "12.6.0"
