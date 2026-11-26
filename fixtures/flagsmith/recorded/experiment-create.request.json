@@ -1,0 +1,25 @@
+{
+  "feature": 303389,
+  "name": "Rehearsal: headline vs Get started clicks",
+  "hypothesis": "Showing \"See today's digest before you sign up\" instead of \"Your creator digest, summarized by AI\" increases Get started clicks (cta_clicked).",
+  "metrics": [
+    {
+      "metric": 422,
+      "expected_direction": "increase"
+    }
+  ],
+  "experiment_rollout": {
+    "enabled": true,
+    "rollout_percentage": 100,
+    "feature_state_value": {
+      "type": "string",
+      "value": "control"
+    },
+    "multivariate_feature_state_values": [
+      {
+        "multivariate_feature_option": 36697,
+        "percentage_allocation": 50
+      }
+    ]
+  }
+}

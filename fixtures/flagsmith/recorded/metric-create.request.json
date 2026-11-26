@@ -1,0 +1,9 @@
+{
+  "name": "Get started clicks",
+  "aggregation": "occurrence",
+  "direction": "up",
+  "definition": {
+    "version": 1,
+    "event": "cta_clicked"
+  }
+}

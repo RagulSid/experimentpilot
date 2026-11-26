@@ -1,0 +1,13 @@
+{
+  "id": 457,
+  "feature": 303389,
+  "name": "Rehearsal: headline vs Get started clicks",
+  "hypothesis": "Showing \"See today's digest before you sign up\" instead of \"Your creator digest, summarized by AI\" increases Get started clicks (cta_clicked).",
+  "status": "created",
+  "created_at": "2026-11-25T07:36:01.590943Z",
+  "updated_at": "2026-11-25T07:36:01.622106Z",
+  "started_at": null,
+  "ended_at": null,
+  "rollout_decision": null,
+  "rollout_variant": null
+}

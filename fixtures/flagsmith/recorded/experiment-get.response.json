@@ -1,0 +1,59 @@
+{
+  "id": 457,
+  "feature": {
+    "id": 303389,
+    "name": "rehearsal_headline",
+    "type": "MULTIVARIATE",
+    "initial_value": "control",
+    "multivariate_options": [
+      {
+        "id": 36697,
+        "uuid": "d9edbcc4-906b-442d-8fe1-2f71e8875a2e",
+        "type": "unicode",
+        "integer_value": null,
+        "string_value": "variant_b",
+        "boolean_value": null,
+        "default_percentage_allocation": 0.0,
+        "key": "variant_b"
+      }
+    ]
+  },
+  "name": "Rehearsal: headline vs Get started clicks",
+  "hypothesis": "Showing \"See today's digest before you sign up\" instead of \"Your creator digest, summarized by AI\" increases Get started clicks (cta_clicked).",
+  "status": "running",
+  "metrics": [
+    {
+      "id": 478,
+      "metric": 422,
+      "metric_name": "Get started clicks",
+      "aggregation": "occurrence",
+      "direction": "up",
+      "expected_direction": "increase",
+      "created_at": "2026-11-25T07:36:01.592978Z"
+    }
+  ],
+  "experiment_rollout": {
+    "enabled": true,
+    "rollout_percentage": 100.0,
+    "feature_state_value": {
+      "type": "string",
+      "value": "control"
+    },
+    "multivariate_feature_state_values": [
+      {
+        "multivariate_feature_option": 36697,
+        "percentage_allocation": 50.0
+      }
+    ],
+    "audience": {
+      "match": "any",
+      "segments": []
+    }
+  },
+  "created_at": "2026-11-25T07:36:01.590943Z",
+  "updated_at": "2026-11-25T09:21:24.780617Z",
+  "started_at": "2026-11-25T09:21:24.773581Z",
+  "ended_at": null,
+  "rollout_decision": null,
+  "rollout_variant": null
+}
