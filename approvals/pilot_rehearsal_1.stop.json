@@ -1,0 +1,8 @@
+{
+  "planId": "pilot_rehearsal_1",
+  "phase": "stop",
+  "approver": "ragul",
+  "approvedAt": "2026-11-26T15:51:19.713Z",
+  "planSha256": "733cd08fcb8a8078f1038af2a61aa596fadccd70bb2ddb37e7b7bbe85199c7c7",
+  "diffSha256": "f07dadd144bc69b9ebf6e62d7e808d871430d3354c5a2bc07b747fe3a5c70215"
+}
