@@ -43,6 +43,15 @@ Limits of the guard today: G8 and G10 read the app file as text and find `const 
   - `npm run pilot -- diff <planfile> --app <file> --phase create|start` prints a phase's diff and hashes without sending anything.
 - **The flag is created enabled.** A Flagsmith flag belongs to the whole project, so it also appears in Production, enabled and serving the control value. Only Development gets the experiment. The CREATE diff says this before anyone approves.
 - **First real run (Thu Nov 26, 14:14 IST, Development only):** after a person approved CREATE (`approvals/pilot_rehearsal_1.create.json`), the applier confirmed the environment was named Development. It then found no existing flag, experiment or metric with these names, and created flag `pilot_rehearsal_1` (305157) with keyed variation `variant_b` (37083), metric "Get started clicks (pilot_rehearsal_1)" (577) and experiment 579, status `created`. **Not started.** Every call is saved, redacted, in [fixtures/flagsmith/recorded/2026-11-26-create/](fixtures/flagsmith/recorded/2026-11-26-create/).
+- **Test page** ([site/](site/)): CreatorDigest, a static page with no build step. It loads the Flagsmith JS SDK 12.6.0 from a vendored copy ([site/vendor/](site/vendor/), BSD-3-Clause).
+  - Flag `pilot_rehearsal_1` picks the headline: control "Your creator digest, summarized by AI", or variant_b "Yesterday's 5 biggest creator posts, in 60 seconds. See today's." with an example line.
+  - An unknown value, an unreachable Flagsmith, or no answer within 2 s shows the control copy (`FALLBACK_VALUE`).
+  - Each browser gets one `web_` visitor id, used for `identify()`, the exposure (`getExperimentFlag` only) and the `cta_clicked` event (`CTA_EVENT`).
+  - Committed `config.js` holds the Production client-side key, which is public by design. The Development key lives in `site/config.local.js`, which is git-ignored and never published.
+  - Run it locally with `npm run site` (port 5173, or `PORT=5174`).
+- **Readout** ([src/readout.js](src/readout.js)): `npm run pilot -- readout <planfile> [--refresh]` prints `not_ready` (stop rule unmet; no numbers to act on), `no_clear_winner` or `winner_candidate`, each with its reasons. It labels scripted traffic, because Flagsmith's results do not separate `sim_` from `web_` visitors. A test checks a hand-calculated example: 15/150 against 22/150 gives a lift of 7/15, the same as Flagsmith's.
+- **Scripted traffic** ([scripts/simulate.mjs](scripts/simulate.mjs)): `sim_` visitors at made-up rates (control 10%, variant_b 14%). It runs only against the Development key bound in `flagsmith.json`, and reuses the page's flag key and event constant.
+- **Hosting:** [.github/workflows/pages.yml](.github/workflows/pages.yml) publishes `site/` to GitHub Pages on push to `main`.
 - **Where each Flagsmith call comes from:** every route the client uses has now been recorded working for real (call numbers in [src/flagsmith-client.js](src/flagsmith-client.js) and [fixtures/flagsmith/recorded/](fixtures/flagsmith/recorded/)). Routes added in Step 4b were first checked against Flagsmith's public OpenAPI spec (operationIds kept in the code). The applier refuses to send a route that is neither recorded nor in the spec to a real Flagsmith host.
 
 ## Before the start
@@ -65,6 +74,7 @@ Work done before the hacking window opened (Thu Nov 26, 8:00 AM IST), disclosed 
 - `fixtures/flagsmith/recorded/`: real Flagsmith request and response bodies recorded during the Nov 25 rehearsal (environment key redacted), saved as test fixtures on Nov 26 without changing any values. The results body comes from scripted traffic.
 
 **Modelled on the rehearsal, written new on Nov 26:**
+- `scripts/serve-site.mjs` and `scripts/simulate.mjs` follow the shape of the rehearsal's local server and traffic script (same SDK calls, `sim_` ids, made-up rates); `site/` follows the rehearsal page's structure (fallback headline, `web_` id, one event constant) with new copy.
 - `fixtures/app/experiment.mjs` follows the shape of the rehearsal's constants file (one event constant, one fallback constant), with a new flag key `pilot_rehearsal_1`. The event name `cta_clicked` and the two headlines in `fixtures/plans/valid-plan.json` are the ones used in the rehearsal.
 
 ## License
