@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CreatorDigest</title>
+  <meta name="description" content="CreatorDigest: a daily AI digest of the creators you follow. Test page for a hackathon A/B test.">
+  <style>
+    :root { --bg: #f7f7f8; --fg: #1d1d1f; --muted: #5c5c63; --accent: #3d5afe; --card: #ffffff; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #121214; --fg: #f2f2f4; --muted: #a6a6ad; --accent: #7c8dff; --card: #1c1c20; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+    main { max-width: 640px; margin: 12vh auto 0; padding: 0 16px; text-align: center; }
+    .brand { font-weight: 700; letter-spacing: 0.02em; color: var(--accent); }
+    h1 { font-size: clamp(1.7rem, 5vw, 2.5rem); line-height: 1.2; margin: 0.5em 0 0.4em; }
+    /* Hidden briefly while the variation loads, so nobody sees one headline flip to the other.
+       Pure-CSS failsafe: visible after 2.5 s even if the script never runs. */
+    h1.pending { visibility: hidden; animation: reveal 0s 2.5s forwards; }
+    @keyframes reveal { to { visibility: visible; } }
+    .sub { color: var(--muted); font-size: 1.05rem; margin: 0; }
+    .example { margin: 1.2em auto 0; padding: 0.8em 1em; max-width: 520px; background: var(--card); border-radius: 10px; font-size: 0.95rem; text-align: left; }
+    button { margin-top: 1.6em; font-size: 1.1rem; padding: 0.75em 1.8em; border: 0; border-radius: 10px; background: var(--accent); color: #fff; cursor: pointer; }
+    button:focus-visible { outline: 3px solid var(--fg); outline-offset: 3px; }
+    .message { min-height: 1.4em; margin-top: 1.2em; color: var(--muted); }
+    footer { max-width: 640px; margin: 12vh auto 24px; padding: 0 16px; text-align: center; color: var(--muted); font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">CreatorDigest</div>
+    <!-- Default text is the control headline, so the page reads correctly without JavaScript. -->
+    <h1 id="headline" class="pending">Your creator digest, summarized by AI</h1>
+    <p id="subline" class="sub">One short email a day with what the creators you follow posted.</p>
+    <p id="example" class="example" hidden></p>
+    <button id="cta" type="button">Get early access</button>
+    <p id="message" class="message" aria-live="polite"></p>
+  </main>
+  <footer>Test page for a hackathon A/B test. No emails or personal data are collected.</footer>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

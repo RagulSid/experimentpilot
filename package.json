@@ -12,7 +12,8 @@
     "test": "node --test \"test/**/*.test.js\"",
     "approve": "node src/approve.js",
     "check": "node src/cli.js check",
-    "pilot": "node src/cli.js"
+    "pilot": "node src/cli.js",
+    "site": "node scripts/serve-site.mjs"
   },
   "devDependencies": {
     "@flagsmith/flagsmith": "12.6.0"
