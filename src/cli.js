@@ -17,6 +17,7 @@ import { createRecorder } from './recorder.js';
 import { validatePlan, planSha256 } from './plan.js';
 import { checkPlan } from './guard.js';
 import { PHASES, buildDiff, diffSha256, formatDiff } from './diff.js';
+import { fetchAndRead, formatReadout } from './readout.js';
 
 function parseArgs(args, { flags = [], options = [] }) {
   const out = { positional: [], flags: {}, options: {} };
@@ -136,7 +137,60 @@ async function apply(args) {
   return result.status === 'dry_run' || result.status === 'applied' ? 0 : 1;
 }
 
-const COMMANDS = { diff, apply };
+// npm run pilot -- readout <planfile> [--refresh] [--config flagsmith.json] [--record <folder>]
+//   Reads the plan's experiment results from Flagsmith and prints not_ready / no_clear_winner /
+//   winner_candidate with the reasons. --refresh asks Flagsmith to recompute first (at most once
+//   every 5 minutes). Reads only; changes nothing in the experiment.
+async function readoutCommand(args) {
+  const usage = 'usage: npm run pilot -- readout <planfile> [--refresh] [--config flagsmith.json] [--record <folder>]';
+  let parsed;
+  try {
+    parsed = parseArgs(args, { flags: ['--refresh'], options: ['--config', '--record'] });
+  } catch (err) {
+    console.error(`${err.message}\n${usage}`);
+    return 1;
+  }
+  const [planPath] = parsed.positional;
+  if (!planPath) {
+    console.error(usage);
+    return 1;
+  }
+  let plan;
+  let config;
+  const configPath = parsed.options['--config'] ?? 'flagsmith.json';
+  try {
+    plan = JSON.parse(readFileSync(planPath, 'utf8'));
+    config = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (err) {
+    console.error(`cannot read input: ${err.message}`);
+    return 1;
+  }
+  const shape = validatePlan(plan);
+  if (!shape.ok) {
+    for (const e of shape.errors) console.error(`REFUSED (plan): ${e}`);
+    return 1;
+  }
+  const log = (line) => console.log(line);
+  const record = parsed.options['--record'] ? createRecorder(parsed.options['--record']) : null;
+  const client = createClient({ projectId: config.project, environmentKey: config.environment, log, record });
+  try {
+    const environment = await client.getEnvironment();
+    if (environment?.name !== plan.environment) {
+      console.error(`REFUSED (environment): configured environment is ${JSON.stringify(environment?.name)}, plan says ${JSON.stringify(plan.environment)}`);
+      return 1;
+    }
+    const r = await fetchAndRead({ plan, client, refresh: parsed.flags['--refresh'] === true, log });
+    console.log('');
+    console.log(`Experiment ${r.experimentId} (${plan.id}), status ${r.experimentStatus}, metric ${r.metricId}${r.refreshed ? `, refreshed${r.stale ? ' (Flagsmith had not finished recomputing; numbers may be older)' : ''}` : ''}`);
+    console.log(formatReadout(r.readout));
+    return 0;
+  } catch (err) {
+    console.error(`FAILED: ${client.redact(err.message)}`);
+    return 1;
+  }
+}
+
+const COMMANDS = { diff, apply, readout: readoutCommand };
 
 const [command, ...args] = process.argv.slice(2);
 
