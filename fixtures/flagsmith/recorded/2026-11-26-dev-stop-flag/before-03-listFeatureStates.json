@@ -1,0 +1,37 @@
+{
+  "route": "listFeatureStates",
+  "method": "GET",
+  "path": "api/v1/environments/<env key>/featurestates/?feature=305157",
+  "status": 200,
+  "body": {
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+      {
+        "id": 1878059,
+        "feature_state_value": "control",
+        "multivariate_feature_state_values": [
+          {
+            "id": 385121,
+            "multivariate_feature_option": 37083,
+            "percentage_allocation": 0
+          }
+        ],
+        "identity": null,
+        "deleted_at": null,
+        "uuid": "6d1cfd2e-0c79-4f05-a8ef-787d596d12fa",
+        "enabled": true,
+        "created_at": "2026-11-26T08:44:40.109888Z",
+        "updated_at": "2026-11-26T08:44:40.109893Z",
+        "live_from": null,
+        "version": null,
+        "feature": 305157,
+        "environment": 119869,
+        "feature_segment": null,
+        "change_request": null,
+        "environment_feature_version": "c84cca83-deaa-480e-9062-4ab2abb98fe5"
+      }
+    ]
+  }
+}
