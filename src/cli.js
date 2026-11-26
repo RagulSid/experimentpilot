@@ -9,7 +9,11 @@
 //     Dry run unless --apply is given. Approvals are read from approvals/<planId>.<phase>.json
 //     (written only by `npm run approve`). The admin token comes only from FLAGSMITH_ADMIN_TOKEN.
 //     --record saves every call's request and response, redacted, as numbered JSON files.
-import { readFileSync } from 'node:fs';
+//   npm run pilot -- plan "<one sentence>" --app <app file> [--record <folder>] [--timeout-ms <ms>]
+//     Asks an AI coding agent (no tools, no credentials) for a plan, parses it strictly and runs
+//     the guard. Writes only plans/proposed/<id>.json, and only if the guard passes. Applies nothing.
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { applyPlan } from './applier.js';
 import { readApprovalText } from './approval.js';
 import { createClient } from './flagsmith-client.js';
@@ -18,6 +22,7 @@ import { validatePlan, planSha256 } from './plan.js';
 import { checkPlan } from './guard.js';
 import { PHASES, buildDiff, diffSha256, formatDiff } from './diff.js';
 import { fetchAndRead, formatReadout } from './readout.js';
+import { proposePlan, recordPlannerRun, childEnv, AGENT, DEFAULT_TIMEOUT_MS } from './planner.js';
 
 function parseArgs(args, { flags = [], options = [] }) {
   const out = { positional: [], flags: {}, options: {} };
@@ -190,7 +195,55 @@ async function readoutCommand(args) {
   }
 }
 
-const COMMANDS = { diff, apply, readout: readoutCommand };
+const readPlans = (dir) => (existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8'))) : []);
+
+async function planCommand(args) {
+  const usage = 'usage: npm run pilot -- plan "<one sentence>" --app <app file> [--record <folder>] [--timeout-ms <ms>]';
+  let parsed;
+  try {
+    parsed = parseArgs(args, { options: ['--app', '--record', '--timeout-ms'] });
+  } catch (err) {
+    console.error(`${err.message}
+${usage}`);
+    return 1;
+  }
+  const sentence = parsed.positional.join(' ').trim();
+  const app = parsed.options['--app'];
+  if (!sentence || !app) {
+    console.error(usage);
+    return 1;
+  }
+  const appSource = readFileSync(app, 'utf8');
+  const examplePlans = readPlans('plans');
+  const proposed = readPlans(join('plans', 'proposed'));
+  const all = [...examplePlans, ...proposed];
+  // Flags of experiments that were started (a committed START approval exists): G9 refuses reusing them.
+  const startedExperimentFlagKeys = all.filter((p) => existsSync(join('approvals', `${p.id}.start.json`))).map((p) => p.flag.key);
+  const timeoutMs = parsed.options['--timeout-ms'] ? Number(parsed.options['--timeout-ms']) : DEFAULT_TIMEOUT_MS;
+
+  console.log(`Asking the AI agent (${AGENT.command}, no tools, no credentials) for a plan: "${sentence}"`);
+  const result = await proposePlan({
+    sentence, appSource, examplePlans,
+    existingPlanIds: all.map((p) => p.id),
+    existingFlagKeys: all.map((p) => p.flag?.key).filter(Boolean),
+    startedExperimentFlagKeys, timeoutMs,
+  });
+  if (parsed.options['--record']) {
+    recordPlannerRun(parsed.options['--record'], { sentence, app, command: AGENT.command, args: AGENT.args, envKeys: Object.keys(childEnv()), startedExperimentFlagKeys, result });
+    console.log(`Recorded the raw agent output and the verdict in ${parsed.options['--record']}`);
+  }
+  console.log(`Agent answered in ${(result.raw.ms / 1000).toFixed(1)} s (exit code ${result.raw.code}${result.raw.timedOut ? ', timed out' : ''}).`);
+  if (result.status === 'proposed') {
+    console.log(`PROPOSED: ${result.path} (guard: all of G1-G10 pass). Nothing was applied.`);
+    console.log(`Next: npm run pilot -- diff ${result.path} --app ${app} --phase create, then a person approves it.`);
+    return 0;
+  }
+  console.error(`REFUSED at the ${result.stage} step:`);
+  for (const r of result.reasons) console.error(`  - ${r}`);
+  return 1;
+}
+
+const COMMANDS = { diff, apply, readout: readoutCommand, plan: planCommand };
 
 const [command, ...args] = process.argv.slice(2);
 
