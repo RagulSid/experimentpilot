@@ -4,6 +4,38 @@ You describe an experiment in one sentence. An agent drafts the Flagsmith experi
 
 Entry for **Toggle Wars** (WeMakeDevs x Flagsmith), **Track 02: AI Agents and Feature Flags**.
 
+## Try it in 60 seconds
+
+Node 22 or newer. No accounts, no keys, no network beyond `npm ci`.
+
+```
+git clone https://github.com/RagulSid/experimentpilot
+cd experimentpilot
+npm ci
+npm run demo    # the whole story offline, against a fake Flagsmith on 127.0.0.1 (about 1 s)
+npm test        # the test suite
+npm run check   # tests + guard on every plan + secret scan of tree and history + README check
+```
+
+The demo labels every part: **RECORDED-REAL** (saved from a real run: the AI planner's answer, Flagsmith's response bodies and results) or **SCRIPTED** (made up for the demo: the bad plans, the demo's own approvals, the fake server, `sim_` traffic).
+
+The live test page is https://ragulsid.github.io/experimentpilot/. It runs the real experiment (650, Production): every visit and click there counts as real traffic.
+
+## How Flagsmith is used
+
+| Job | How | Code | Evidence (recorded, redacted) |
+|---|---|---|---|
+| Multivariate flag with a keyed variation | Admin API `POST projects/{p}/features/`, then `POST .../features/{f}/mv-options/` with `key` | [src/applier.js](src/applier.js) | [production-create](fixtures/flagsmith/recorded/2026-11-26-production-create/) 05, 06 |
+| Metric on the page's event `cta_clicked` | `POST environments/{env}/experiment-metrics/` | [src/applier.js](src/applier.js) | production-create 07 |
+| Create the experiment (not started) | `POST environments/{env}/experiments/` | [src/applier.js](src/applier.js) | production-create 08 |
+| Start it, after a separate approval | `POST environments/{env}/experiments/{id}/start/` | [src/applier.js](src/applier.js) | [production-start](fixtures/flagsmith/recorded/2026-11-26-production-start/) 03 |
+| Read and refresh results | `GET .../experiments/{id}/results/`, `POST .../results/refresh/` (at most once every 5 minutes) | [src/readout.js](src/readout.js) | [production-results-1](fixtures/flagsmith/recorded/2026-11-26-production-results-1/) |
+| Check the environment before every write | `GET environments/{env}/` (refuses if the name differs from the plan) | [src/applier.js](src/applier.js) | every recorded folder, file 01 |
+| Serve the variation, record the exposure, send the event | JS SDK 12.6.0: `identify`, `getExperimentFlag`, `trackEvent` with the same `web_` id | [site/app.js](site/app.js) | the live page |
+
+Experiments are created and started through the Admin API only. No MCP server is used.
+
+
 ## Status
 
 Built step by step during the hacking window (Thu Nov 26 to Sun Nov 29, 2026). This README only describes what exists in the repo at each commit.
@@ -54,9 +86,16 @@ Limits of the guard today: G8 and G10 read the app file as text and find `const 
   - Run it locally with `npm run site` (port 5173, or `PORT=5174`).
 - **Readout** ([src/readout.js](src/readout.js)): `npm run pilot -- readout <planfile> [--refresh]` prints `not_ready` (stop rule unmet; no numbers to act on), `no_clear_winner` or `winner_candidate`, each with its reasons. It labels scripted traffic, because Flagsmith's results do not separate `sim_` from `web_` visitors. A test checks a hand-calculated example: 15/150 against 22/150 gives a lift of 7/15, the same as Flagsmith's.
 - **Scripted traffic** ([scripts/simulate.mjs](scripts/simulate.mjs)): `sim_` visitors at made-up rates (control 10%, variant_b 14%). It runs only against the Development key bound in `flagsmith.json`, takes the Development flag key from `config.local.js` (never the real flag), and reuses the page's event constant.
-- **Real experiment plan, not created yet:** [plans/creatordigest_headline_1.json](plans/creatordigest_headline_1.json). Production, flag `creatordigest_headline` (control / variant_b, 50/50), metric "Early access clicks (creatordigest_headline)" on `cta_clicked`, higher is better, real `web_` visitors only (no scripted traffic), fixed end Sat Nov 28, 22:00 IST, winner only if the chance to win is at least 95% and the interval excludes zero. The guard refuses it (G9) unless `--allow-production` is given; `diff`, `approve` and `apply` all take that flag, and a Production diff starts with a `PRODUCTION:` warning line. Only its dry-run diff has been produced (plan sha256 `4013bb29…ab26`, CREATE diff sha256 `18549af0…4369`). No approval exists for it. Read-only checks of Production (GET only, Thu Nov 26, 18:04 IST, recorded in [fixtures/flagsmith/recorded/2026-11-26-production-readonly/](fixtures/flagsmith/recorded/2026-11-26-production-readonly/)): the environment is named Production, no flag, metric or experiment with these names exists, and its settings match Development. Its warehouse connection shows `pending_connection` with 0 events; Development showed the same status and its results still worked, but that is not yet proven for Production.
+- **Real experiment plan:** [plans/creatordigest_headline_1.json](plans/creatordigest_headline_1.json). Production, flag `creatordigest_headline` (control / variant_b, 50/50), metric "Early access clicks (creatordigest_headline)" on `cta_clicked`, higher is better, real `web_` visitors only (no scripted traffic), fixed end Sat Nov 28, 22:00 IST, winner only if the chance to win is at least 95% and the interval excludes zero. The guard refuses it (G9) unless `--allow-production` is given; `diff`, `approve` and `apply` all take that flag, and a Production diff starts with a `PRODUCTION:` warning line. Plan sha256 `4013bb29…ab26`; CREATE diff sha256 `18549af0…4369`. Both approvals (CREATE and START) are in [approvals/](approvals/). Read-only checks of Production (GET only, Thu Nov 26, 18:04 IST, recorded in [fixtures/flagsmith/recorded/2026-11-26-production-readonly/](fixtures/flagsmith/recorded/2026-11-26-production-readonly/)): the environment is named Production, no flag, metric or experiment with these names exists, and its settings match Development. Its warehouse connection shows `pending_connection` with 0 events; Development showed the same status and its results still worked, but that is not yet proven for Production.
 - **Real experiment created in Production (Thu Nov 26, 18:36 IST), not started.** After a person approved CREATE with `--allow-production` (`approvals/creatordigest_headline_1.create.json`, diff sha256 `18549af0…4369`), the applier ran a dry run, then confirmed the environment was named Production and that nothing with these names existed, and created flag `creatordigest_headline` (305552, enabled, control) with keyed variation `variant_b` (37266), metric "Early access clicks (creatordigest_headline)" (639) and experiment 650, status `created`. Recorded in [fixtures/flagsmith/recorded/2026-11-26-production-create/](fixtures/flagsmith/recorded/2026-11-26-production-create/). Until START, every visitor gets the control headline. START needs its own approval after the page is deployed.
 - **Real experiment started in Production (Thu Nov 26, 18:50 IST).** The page was published on GitHub Pages first (https://ragulsid.github.io/experimentpilot/; its `app.js` and `config.js` checked byte-identical to the repo, `config.local.js` not published). A person then approved START with `--allow-production` (`approvals/creatordigest_headline_1.start.json`, diff sha256 `6f0fa86d…af1d`), and the applier started experiment 650: status `running`, started 2026-11-26T13:20:06Z, rollout 100%, variant_b 50%. Recorded in [fixtures/flagsmith/recorded/2026-11-26-production-start/](fixtures/flagsmith/recorded/2026-11-26-production-start/). The pre-registered stop rule ends it at Sat Nov 28, 22:00 IST; until then the readout says `not_ready`. No results are reported here yet.
+- **Planner, the AI part** ([src/planner.js](src/planner.js)): `npm run pilot -- plan "<one sentence>" --app site/app.js` asks an AI coding agent's headless CLI for a plan (command and flags in the code, each checked against the CLI's own `--help`).
+  - The agent gets no credentials: a minimal allow-listed environment (a test checks that no variable named like a token, key or secret reaches it), every tool disabled, an empty folder outside the repo, and the app source and example plans only through the prompt.
+  - Plain code then requires one JSON object and nothing else (prose or code fences are refused), checks the shape and runs the guard. A proposal can never target Production. The only output is `plans/proposed/<id>.json`; nothing is applied. Pipeline: AI proposes, the guard checks, a person approves, the applier runs.
+  - **First real run (Thu Nov 26, 20:49 IST):** proposed [plans/proposed/creatordigest_headline_dev_1.json](plans/proposed/creatordigest_headline_dev_1.json) for Development in 15.0 s; the guard passed it. Nothing was created in Flagsmith. The raw output and verdict are in [fixtures/planner/recorded/](fixtures/planner/recorded/) (one account field, the sign-in expiry, blanked).
+  - **Scripted bad plans** (written by hand, not AI output), one per guard-rule family, in [fixtures/planner/scripted/](fixtures/planner/scripted/): peeking language (G7), stop when significant (G6), missing control (G2), Production without the allow flag (G9). The guard refuses each.
+- **Demo** ([scripts/demo.mjs](scripts/demo.mjs)): `npm run demo`, offline, under a second on the author's Windows laptop. Re-checks the recorded planner output, refuses the scripted bad plans and three tampered approvals, applies CREATE and START to a fake Flagsmith, and prints two readouts from recorded real results. Any request to a host other than 127.0.0.1 throws.
+- **Check** ([scripts/check.mjs](scripts/check.mjs), [src/check.js](src/check.js)): `npm run check` runs the tests, the shape check and guard on every plan (Production only with a valid committed CREATE approval), a secret scan of the working tree and every file version in the git history, and the README heading check. It exits 1 on any failure and never prints a secret value.
 - **Hosting:** [.github/workflows/pages.yml](.github/workflows/pages.yml) publishes `site/` to GitHub Pages when started by hand. Pages is on: https://ragulsid.github.io/experimentpilot/.
 - **Where each Flagsmith call comes from:** every route the client uses has now been recorded working for real (call numbers in [src/flagsmith-client.js](src/flagsmith-client.js) and [fixtures/flagsmith/recorded/](fixtures/flagsmith/recorded/)). Routes added in Step 4b were first checked against Flagsmith's public OpenAPI spec (operationIds kept in the code). The applier refuses to send a route that is neither recorded nor in the spec to a real Flagsmith host.
 
