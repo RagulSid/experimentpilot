@@ -147,13 +147,56 @@ test('a wrong token gets the server 401 back as an error', async () => {
   } finally { await fake.close(); }
 });
 
-test('every route states whether it was recorded or guessed', async () => {
+test('every route states its source: recorded (with call number) or swagger (with operationId); none guessed', async () => {
   const { ROUTES } = await load();
-  const recordedRoutes = Object.entries(ROUTES).filter(([, r]) => r.source === 'recorded').map(([n]) => n).sort();
-  const guessedRoutes = Object.entries(ROUTES).filter(([, r]) => r.source === 'guessed').map(([n]) => n).sort();
-  assert.deepEqual(recordedRoutes, ['createExperiment', 'createMetric', 'getExperiment', 'getResults', 'getWarehouseConnections', 'refreshResults', 'startExperiment']);
-  assert.deepEqual(guessedRoutes, ['createFeature', 'listExperiments', 'listFeatures']);
+  const bySource = (s) => Object.entries(ROUTES).filter(([, r]) => r.source === s).map(([n]) => n).sort();
   for (const [name, r] of Object.entries(ROUTES)) {
+    assert.ok(['recorded', 'swagger'].includes(r.source), `${name} has source ${r.source}`);
     if (r.source === 'recorded') assert.ok(Number.isInteger(r.call), `${name} names its recorded call number`);
+    if (r.source === 'swagger') assert.match(r.operationId, /^[a-z0-9_]+$/, `${name} names its OpenAPI operationId`);
   }
+  assert.deepEqual(bySource('guessed'), []);
+  for (const name of ['getEnvironment', 'listFeatures', 'createFeature', 'createVariation', 'listExperiments']) {
+    assert.ok(name in ROUTES, `${name} exists`);
+  }
+});
+
+test('the routes from Swagger work against the fake: environment, feature search, create, keyed variation, experiment search', async () => {
+  const { client, fake } = await setup({ existingFeatures: [{ id: 5, name: 'other_flag' }] });
+  try {
+    const env = await client.getEnvironment();
+    assert.equal(env.name, 'Development');
+    assert.deepEqual(await client.listFeatures('pilot_rehearsal_1'), []);
+    const feature = await client.createFeature({ name: 'pilot_rehearsal_1', type: 'MULTIVARIATE', initial_value: 'control', default_enabled: true });
+    assert.equal(feature.id, 303389);
+    const option = await client.createVariation(feature.id, { type: 'unicode', string_value: 'variant_b', default_percentage_allocation: 0, key: 'variant_b', feature: feature.id });
+    assert.equal(option.key, 'variant_b');
+    assert.deepEqual(await client.listExperiments('pilot_rehearsal_1'), []);
+    assert.deepEqual(fake.requests.map((r) => [r.method, r.path.replace(ENV_KEY, '<env>'), r.query]), [
+      ['GET', '/api/v1/environments/<env>/', {}],
+      ['GET', '/api/v1/projects/55988/features/', { search: 'pilot_rehearsal_1' }],
+      ['POST', '/api/v1/projects/55988/features/', {}],
+      ['POST', '/api/v1/projects/55988/features/303389/mv-options/', {}],
+      ['GET', '/api/v1/environments/<env>/experiments/', { q: 'pilot_rehearsal_1' }],
+    ]);
+  } finally { await fake.close(); }
+});
+
+test('record hook gets every call with method, path, status, request and response, all redacted', async () => {
+  const { createClient } = await load();
+  const fake = await startFakeFlagsmith({ token: TOKEN, environmentKey: ENV_KEY, projectId: PROJECT_ID, failures: { 'POST experiments': 400 }, echoAuthorizationInErrors: true });
+  const entries = [];
+  const client = createClient({ baseUrl: fake.baseUrl, env: { FLAGSMITH_ADMIN_TOKEN: TOKEN }, projectId: PROJECT_ID, environmentKey: ENV_KEY, record: (e) => entries.push(e) });
+  try {
+    await client.getEnvironment();
+    await client.createMetric(recorded('metric-create.request.json'));
+    await assert.rejects(client.createExperiment({ name: 'x' }));
+    assert.deepEqual(entries.map((e) => [e.route, e.method, e.status]), [
+      ['getEnvironment', 'GET', 200], ['createMetric', 'POST', 201], ['createExperiment', 'POST', 400],
+    ]);
+    assert.equal(entries[0].path, 'api/v1/environments/<env key>/');
+    assert.equal(JSON.parse(entries[0].response).api_key, '<env key>', 'the environment key in a response body is redacted');
+    assert.deepEqual(entries[1].request, recorded('metric-create.request.json'));
+    for (const e of entries) noSecrets(JSON.stringify(e));
+  } finally { await fake.close(); }
 });
