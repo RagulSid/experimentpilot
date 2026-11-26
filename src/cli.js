@@ -2,14 +2,21 @@
 // ExperimentPilot command line. Commands are added as each build step lands.
 // Anything not built yet exits with code 1 and says so; nothing pretends to succeed.
 //
-//   npm run pilot -- apply <planfile> --app <app file> [--apply] [--config flagsmith.json] [--allow-production]
-//     Dry run unless --apply is given. Approvals are read from approvals/<planId>.json
-//     (written only by `npm run approve -- <planfile>`). The admin token comes only from
-//     the FLAGSMITH_ADMIN_TOKEN environment variable.
+//   npm run pilot -- diff  <planfile> --app <app file> --phase create|start
+//     Runs the guard and prints that phase's exact Flagsmith diff and hashes. Sends nothing.
+//   npm run pilot -- apply <planfile> --app <app file> --phase create|start
+//                          [--apply] [--config flagsmith.json] [--allow-production] [--record <folder>]
+//     Dry run unless --apply is given. Approvals are read from approvals/<planId>.<phase>.json
+//     (written only by `npm run approve`). The admin token comes only from FLAGSMITH_ADMIN_TOKEN.
+//     --record saves every call's request and response, redacted, as numbered JSON files.
 import { readFileSync } from 'node:fs';
 import { applyPlan } from './applier.js';
 import { readApprovalText } from './approval.js';
 import { createClient } from './flagsmith-client.js';
+import { createRecorder } from './recorder.js';
+import { validatePlan, planSha256 } from './plan.js';
+import { checkPlan } from './guard.js';
+import { PHASES, buildDiff, diffSha256, formatDiff } from './diff.js';
 
 function parseArgs(args, { flags = [], options = [] }) {
   const out = { positional: [], flags: {}, options: {} };
@@ -25,38 +32,80 @@ function parseArgs(args, { flags = [], options = [] }) {
   return out;
 }
 
-async function apply(args) {
-  const usage = 'usage: npm run pilot -- apply <planfile> --app <app file> [--apply] [--config flagsmith.json] [--allow-production]';
+function readInputs(planPath, appPath) {
+  return {
+    plan: JSON.parse(readFileSync(planPath, 'utf8')),
+    appSource: readFileSync(appPath, 'utf8'),
+  };
+}
+
+async function diff(args) {
+  const usage = 'usage: npm run pilot -- diff <planfile> --app <app file> --phase create|start';
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ['--apply', '--allow-production'], options: ['--app', '--config'] });
+    parsed = parseArgs(args, { options: ['--app', '--phase'] });
   } catch (err) {
     console.error(`${err.message}\n${usage}`);
     return 1;
   }
   const [planPath] = parsed.positional;
-  const appPath = parsed.options['--app'];
-  if (!planPath || !appPath) {
+  const phase = parsed.options['--phase'];
+  if (!planPath || !parsed.options['--app'] || !PHASES.includes(phase)) {
     console.error(usage);
     return 1;
   }
-
-  let plan;
-  let appSource;
+  let inputs;
   try {
-    plan = JSON.parse(readFileSync(planPath, 'utf8'));
-    appSource = readFileSync(appPath, 'utf8');
+    inputs = readInputs(planPath, parsed.options['--app']);
+  } catch (err) {
+    console.error(`cannot read input: ${err.message}`);
+    return 1;
+  }
+  const shape = validatePlan(inputs.plan);
+  if (!shape.ok) {
+    for (const e of shape.errors) console.error(`REFUSED (plan): ${e}`);
+    return 1;
+  }
+  const guard = checkPlan(inputs.plan, { appSource: inputs.appSource });
+  if (!guard.ok) {
+    for (const v of guard.violations) console.error(`REFUSED (guard): ${v.rule} ${v.reason}`);
+    return 1;
+  }
+  const changes = buildDiff(inputs.plan, phase);
+  console.log(formatDiff(changes, { planSha256: planSha256(inputs.plan), diffSha256: diffSha256(changes) }));
+  return 0;
+}
+
+async function apply(args) {
+  const usage = 'usage: npm run pilot -- apply <planfile> --app <app file> --phase create|start [--apply] [--config flagsmith.json] [--allow-production] [--record <folder>]';
+  let parsed;
+  try {
+    parsed = parseArgs(args, { flags: ['--apply', '--allow-production'], options: ['--app', '--config', '--phase', '--record'] });
+  } catch (err) {
+    console.error(`${err.message}\n${usage}`);
+    return 1;
+  }
+  const [planPath] = parsed.positional;
+  const phase = parsed.options['--phase'];
+  if (!planPath || !parsed.options['--app'] || !PHASES.includes(phase)) {
+    console.error(usage);
+    return 1;
+  }
+  let inputs;
+  try {
+    inputs = readInputs(planPath, parsed.options['--app']);
   } catch (err) {
     console.error(`cannot read input: ${err.message}`);
     return 1;
   }
 
-  let approvalText = null;
-  try {
-    approvalText = typeof plan?.id === 'string' ? readApprovalText(plan.id) : null;
-  } catch {
-    approvalText = null;
-  }
+  const approvalOf = (p) => {
+    try {
+      return typeof inputs.plan?.id === 'string' ? readApprovalText(inputs.plan.id, p) : null;
+    } catch {
+      return null;
+    }
+  };
 
   const log = (line) => console.log(line);
   let client;
@@ -69,13 +118,16 @@ async function apply(args) {
       console.error(`cannot read ${configPath} (project and environment): ${err.message}`);
       return 1;
     }
-    client = createClient({ projectId: config.project, environmentKey: config.environment, log });
+    const record = parsed.options['--record'] ? createRecorder(parsed.options['--record']) : null;
+    client = createClient({ projectId: config.project, environmentKey: config.environment, log, record });
   }
 
   const result = await applyPlan({
-    plan,
-    approvalText,
-    appSource,
+    plan: inputs.plan,
+    phase,
+    approvalText: approvalOf(phase),
+    createApprovalText: phase === 'start' ? approvalOf('create') : undefined,
+    appSource: inputs.appSource,
     apply: parsed.flags['--apply'] === true,
     client,
     allowProduction: parsed.flags['--allow-production'] === true,
@@ -84,7 +136,7 @@ async function apply(args) {
   return result.status === 'dry_run' || result.status === 'applied' ? 0 : 1;
 }
 
-const COMMANDS = { apply };
+const COMMANDS = { diff, apply };
 
 const [command, ...args] = process.argv.slice(2);
 
