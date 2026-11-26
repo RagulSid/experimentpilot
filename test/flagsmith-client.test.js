@@ -103,6 +103,10 @@ test('canRefresh uses the recorded refresh_requested_at and the 5-minute limit',
   assert.deepEqual(canRefresh(results, new Date(requested + 4 * 60 * 1000)), { ok: false, waitMs: 60 * 1000 });
   assert.deepEqual(canRefresh(results, new Date(requested + 5 * 60 * 1000)), { ok: true, waitMs: 0 });
   assert.deepEqual(canRefresh({ results: { refresh_requested_at: null } }, new Date()), { ok: true, waitMs: 0 });
+  // Recorded 2026-11-26 (call 46): before the first refresh Flagsmith returns {"results": null}.
+  const never = recorded('2026-11-26-start-results/04-getResults.json').response;
+  assert.deepEqual(never, { results: null });
+  assert.deepEqual(canRefresh(never, new Date()), { ok: true, waitMs: 0 });
 });
 
 test('the token never appears in a log line or error message, even if the server echoes it', async () => {

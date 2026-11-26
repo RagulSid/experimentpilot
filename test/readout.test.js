@@ -135,3 +135,21 @@ test('fetchAndRead: finds the experiment by name, reads its metric and results (
     assert.deepEqual(fake.requests.map((q) => q.route), ['GET experiments (list)', 'GET experiment', 'GET results']);
   } finally { await fake.close(); }
 });
+
+test('recorded Development run after START (calls 41-48, scripted sim_ only): no_clear_winner', async () => {
+  // Real Flagsmith results for experiment 579, 2026-11-26 16:14 IST, after 400 sim_ visitors with
+  // made-up rates. By hand: control 34/217, variant_b 29/183; stop rule (150 per variant) is met.
+  const { readout } = await load();
+  const rehearsal = read('plans/pilot_rehearsal_1.json');
+  const body = read('fixtures/flagsmith/recorded/2026-11-26-start-results/07-getResults.json').response;
+  const r = readout({ plan: rehearsal, results: body, metricId: 577, now: new Date('2026-11-26T10:45:00Z') });
+  assert.deepEqual(r.exposures, { control: 217, variant_b: 183 });
+  assert.equal(r.variants.control.rate, 34 / 217);
+  assert.equal(r.variants.variant_b.rate, 29 / 183);
+  assert.equal(r.decision, 'no_clear_winner');
+  assert.equal(r.winner, undefined);
+  const [low, high] = r.variants.variant_b.interval;
+  assert.ok(low < 0 && high > 0, 'the interval includes zero');
+  assert.ok(r.variants.variant_b.chanceToWin < 0.95);
+  assert.match(r.trafficNote, /sim_/);
+});
