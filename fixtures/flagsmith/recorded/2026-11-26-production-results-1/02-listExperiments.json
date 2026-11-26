@@ -1,0 +1,64 @@
+{
+  "route": "listExperiments",
+  "method": "GET",
+  "path": "api/v1/environments/<env key>/experiments/",
+  "query": {
+    "q": "creatordigest_headline_1"
+  },
+  "status": 200,
+  "request": null,
+  "response": {
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+      {
+        "id": 650,
+        "feature": {
+          "id": 305552,
+          "name": "creatordigest_headline",
+          "type": "MULTIVARIATE",
+          "initial_value": "control",
+          "multivariate_options": [
+            {
+              "id": 37266,
+              "uuid": "38b66971-03f1-4270-acbc-03a1bb7ee613",
+              "type": "unicode",
+              "integer_value": null,
+              "string_value": "variant_b",
+              "boolean_value": null,
+              "default_percentage_allocation": 0,
+              "key": "variant_b"
+            }
+          ]
+        },
+        "name": "creatordigest_headline_1",
+        "hypothesis": "Showing a concrete example line (\"Yesterday's 5 biggest creator posts, in 60 seconds. See today's.\") instead of the generic AI headline increases Get early access clicks.",
+        "status": "running",
+        "metrics": [
+          {
+            "id": 728,
+            "metric": 639,
+            "metric_name": "Early access clicks (creatordigest_headline)",
+            "aggregation": "occurrence",
+            "direction": "up",
+            "expected_direction": "increase",
+            "created_at": "2026-11-26T13:07:20.651421Z"
+          }
+        ],
+        "created_at": "2026-11-26T13:07:20.647028Z",
+        "updated_at": "2026-11-26T13:20:06.506937Z",
+        "started_at": "2026-11-26T13:20:06.502289Z",
+        "ended_at": null,
+        "rollout_decision": null,
+        "rollout_variant": null
+      }
+    ],
+    "status_counts": {
+      "created": 0,
+      "running": 1,
+      "paused": 0,
+      "completed": 0
+    }
+  }
+}

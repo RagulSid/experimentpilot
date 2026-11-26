@@ -1,0 +1,11 @@
+{
+  "route": "getResults",
+  "method": "GET",
+  "path": "api/v1/environments/<env key>/experiments/650/results/",
+  "query": null,
+  "status": 200,
+  "request": null,
+  "response": {
+    "results": null
+  }
+}
