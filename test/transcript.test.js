@@ -48,3 +48,23 @@ test('sumUsage adds the usage and cost of each turn\'s result event', async () =
     total_tokens: 3215, total_cost_usd: 0.75,
   });
 });
+
+// Found by `npm run check` on the real Development run: thinking-block signatures are long opaque
+// base64, and runs of 22 letters and digits inside them look like environment keys to the scanner.
+// They carry nothing a reader needs, so the recorder drops them (the thinking text is kept).
+test('redactLine replaces thinking-block signatures and redacted-thinking data with placeholders', async () => {
+  const { redactLine } = await import('../src/transcript.js');
+  const blob = `${['A1b2C3d4E5f6', 'G7h8I9j0Kl'].join('')}/+${'x'.repeat(40)}`;   // built at run time: no key-like literal
+  const line = JSON.stringify({ type: 'assistant', message: { content: [
+    { type: 'thinking', thinking: 'plan the next step', signature: blob },
+    { type: 'redacted_thinking', data: blob },
+    { type: 'text', text: 'done' },
+  ] } });
+  const out = redactLine(line, []);
+  assert.ok(!out.includes(blob));
+  const content = JSON.parse(out).message.content;
+  assert.equal(content[0].signature, '<signature>');
+  assert.equal(content[0].thinking, 'plan the next step');
+  assert.equal(content[1].data, '<redacted_thinking>');
+  assert.equal(content[2].text, 'done');
+});
