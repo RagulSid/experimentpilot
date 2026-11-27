@@ -8,7 +8,8 @@
 // and usage.json (summed from each turn's result event).
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, appendFileSync, cpSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadSecrets, redactLine, sumUsage } from '../src/transcript.js';
 
@@ -40,8 +41,7 @@ const turn = state.turns + 1;
 // API directly, create a flag outside the pilot, or read files that hold keys.
 const ALLOWED = [
   // Write is allowed in the working directory, and Edit deny rules (which also govern Write) block every
-  // path but plans/. Tested 2026-11-27: a path-scoped Edit(/plans/**) allow did not let Write create a
-  // new file in dontAsk mode, while Edit(approvals/**) as a deny did block Write.
+  // path but plans/. Tested 2026-11-27: Edit(approvals/**) as a deny did block Write.
   'Skill', 'Read', 'Glob', 'Grep', 'Write', 'Edit(/plans/**)',
   'Bash(node src/cli.js *)',
   'Bash(node skills/flagsmith-experiment-rollout/scripts/status.mjs *)',
@@ -60,9 +60,18 @@ const DENIED = [
   'Edit(/*.json)', 'Edit(/*.md)', 'Edit(/.gitignore)', 'Edit(/.gitattributes)', 'Edit(/LICENSE)', 'Edit(**/*.local.js)', 'Edit(//**/flagsmith*.json)',
 ];
 
+// The plugin is loaded from a fresh copy outside the repo. Claude Code treats every file under a
+// --plugin-dir root as sensitive and asks before writing it, so `--plugin-dir .` made plans/ unwritable
+// in a headless run (where every prompt is a refusal). The skill's commands use repo-relative paths,
+// so the copy only supplies SKILL.md and references; --add-dir lets the agent read them.
+const pluginCopy = join(tmpdir(), 'experimentpilot-plugin');
+rmSync(pluginCopy, { recursive: true, force: true });
+cpSync('.claude-plugin', join(pluginCopy, '.claude-plugin'), { recursive: true });
+cpSync(join('skills', 'flagsmith-experiment-rollout'), join(pluginCopy, 'skills', 'flagsmith-experiment-rollout'), { recursive: true });
+
 const args = [
   '-p', message,
-  '--plugin-dir', '.',
+  '--plugin-dir', pluginCopy, '--add-dir', pluginCopy,
   '--output-format', 'stream-json', '--verbose',
   // acceptEdits: file edits in the working directory run (the Edit deny rules above still win, so only
   // plans/ is writable). Anything else that would prompt is denied, because nobody answers prompts.

@@ -72,7 +72,7 @@ What stops working without each Flagsmith call.
 [skills/flagsmith-experiment-rollout/](skills/flagsmith-experiment-rollout/) is an [Agent Skill](https://agentskills.io/specification) (`SKILL.md` with `name` and `description` frontmatter, plus `references/` and `scripts/`). It takes the agent from one sentence to a completed experiment: plan, guard G1-G10, **STOP** for the exact diff, create, **STOP** until the app is deployed, start, readout, complete with control, variant or disable, then a check of what visitors now get.
 
 **Install.** The skill drives this repo's commands, so it runs from a checkout of this repo.
-- Claude Code, this session only: `claude --plugin-dir .` (the repo's [.claude-plugin/plugin.json](.claude-plugin/plugin.json) loads `skills/`; the skill appears as `experimentpilot:flagsmith-experiment-rollout`).
+- Claude Code, this session only: `claude --plugin-dir .` (the repo's [.claude-plugin/plugin.json](.claude-plugin/plugin.json) loads `skills/`; the skill appears as `experimentpilot:flagsmith-experiment-rollout`). Claude Code treats files under a `--plugin-dir` folder as sensitive, so it asks before writing `plans/<id>.json`; approve that prompt, or load the plugin from a copy outside the repo as [scripts/skill-turn.mjs](scripts/skill-turn.mjs) does for headless runs.
 - Claude Code, always: copy `skills/flagsmith-experiment-rollout/` to `.claude/skills/` in your checkout.
 - Then `npm ci` (installs the pinned Flagsmith CLI binary that the helper and the pilot run) and `flagsmith login`.
 
