@@ -11,6 +11,8 @@
 //                every such route to "recorded"; their operationIds are kept for reference
 //   "guessed"  = neither; the applier refuses to send these to a real Flagsmith host
 
+import { createCliFetch } from './flagsmith-cli-transport.js';
+
 export const ADMIN_API_BASE_URL = 'https://api.flagsmith.com/';
 export const TOKEN_ENV = 'FLAGSMITH_ADMIN_TOKEN';
 export const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -47,13 +49,16 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 export function createClient({
   baseUrl = ADMIN_API_BASE_URL,
   env = process.env,
-  fetchImpl = globalThis.fetch,
+  transport = 'fetch',       // 'fetch' (admin token) or 'cli' (the Flagsmith CLI's own login; src/flagsmith-cli-transport.js)
+  fetchImpl = transport === 'cli' ? createCliFetch({ env }) : globalThis.fetch,
   log = () => {},
   record = null,            // optional: receives { route, method, path, status, request, response }, redacted
   projectId,
   environmentKey,
 } = {}) {
-  const token = env[TOKEN_ENV];
+  if (!['fetch', 'cli'].includes(transport)) throw new Error(`unknown transport ${JSON.stringify(transport)}`);
+  const viaCli = transport === 'cli';
+  const token = viaCli ? undefined : env[TOKEN_ENV];
   const base = new URL(baseUrl);
 
   const redact = (text) => {
@@ -74,12 +79,12 @@ export function createClient({
     const shownPath = fill(route.path, '<env key>');
     const shown = `${route.method} ${shownPath}`;
 
-    if (!token) throw new FlagsmithApiError(`${shown}: ${TOKEN_ENV} is not set; nothing was sent`, { route: routeName });
+    if (!token && !viaCli) throw new FlagsmithApiError(`${shown}: ${TOKEN_ENV} is not set; nothing was sent`, { route: routeName });
 
     const url = new URL(path, base);
     for (const [k, v] of Object.entries(query ?? {})) url.searchParams.set(k, v);
 
-    const headers = { Authorization: `Api-Key ${token}`, Accept: 'application/json' };
+    const headers = viaCli ? { Accept: 'application/json' } : { Authorization: `Api-Key ${token}`, Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
 
     log(`-> ${shown}${url.search ? redact(url.search) : ''}`);
@@ -87,7 +92,8 @@ export function createClient({
     try {
       res = await fetchImpl(url, { method: route.method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     } catch (err) {
-      throw new FlagsmithApiError(redact(`${shown}: Flagsmith could not be reached (${err.cause?.code ?? err.message})`), { route: routeName });
+      const why = viaCli ? err.message : `Flagsmith could not be reached (${err.cause?.code ?? err.message})`;
+      throw new FlagsmithApiError(redact(`${shown}: ${why}`), { route: routeName });
     }
     const text = await res.text();
     log(`<- ${res.status} ${shown}`);
@@ -120,6 +126,7 @@ export function createClient({
 
   return {
     baseUrl: base.href,
+    transport,
     isLoopback: LOOPBACK_HOSTS.has(base.hostname),
     redact,
     getEnvironment: () => request('getEnvironment'),

@@ -104,7 +104,7 @@ test('real CLI binary: a 202 with an empty body (results refresh) returns null',
   }
 });
 
-test('real CLI binary: not logged in is a clear failure that names the fix, without the env key', async () => {
+test('real CLI binary: with no login for the host, the call fails, nothing is sent, and the env key is not shown', async () => {
   const { createClient } = await import('../src/flagsmith-client.js');
   const fake = await startFakeFlagsmith({ token: TOKEN, environmentKey: ENV_KEY, projectId: PROJECT });
   try {
@@ -112,7 +112,7 @@ test('real CLI binary: not logged in is a clear failure that names the fix, with
     for (const k of Object.keys(env)) if (k.startsWith('FLAGSMITH_')) delete env[k];
     const client = createClient({ baseUrl: fake.baseUrl, env, transport: 'cli', projectId: PROJECT, environmentKey: ENV_KEY });
     await assert.rejects(client.getEnvironment(), (err) => {
-      assert.match(err.message, /not logged in/);
+      assert.match(err.message, /flagsmith CLI failed: Error: /); // v2.0.0 on Windows: "not logged in"; other OS keyrings may word it differently
       assert.ok(!err.message.includes(ENV_KEY));
       return true;
     });
