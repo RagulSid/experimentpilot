@@ -73,12 +73,13 @@ test('every flagsmith command the skill tells the agent to run is a verified rea
   let seen = 0;
   for (const { rel, text } of docs()) {
     for (const { cmd, line } of commands(text)) {
-      if (!/^flagsmith\b/.test(cmd)) continue;
+      if (!/^flagsmith\s/.test(cmd)) continue; // a bare `flagsmith` is the program's name, not a command
       if (FORBIDDEN.test(cmd)) {
         assert.match(line, PROHIBITION, `${rel}: ${cmd} appears outside a prohibition`);
         continue;
       }
       if (/\btransport\b/i.test(line)) continue; // describes what the pilot's code runs, not a command for the agent
+      if (PROHIBITION.test(line) && !/--jq\b|--json\b/.test(cmd)) continue; // named in a "do not" line, not an instruction to run it
       const sub = cmd.replace(/^flagsmith\s+/, '');
       if (NO_JSON_NEEDED.some((s) => sub === s || sub.startsWith(`${s} `))) continue;
       assert.ok(VERIFIED_READS.some((s) => sub === s || sub.startsWith(`${s} `)), `${rel}: "${cmd}" is not a verified read command`);
