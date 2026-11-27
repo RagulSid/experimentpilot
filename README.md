@@ -2,7 +2,7 @@
 
 You describe an experiment in one sentence. An agent drafts the Flagsmith experiment, plain code rejects anything unsafe, a person approves the exact change, and plain code reads the result honestly.
 
-Entry for **Toggle Wars** (WeMakeDevs x Flagsmith), **Track 02: AI Agents and Feature Flags**.
+Entry for **Toggle Wars** (WeMakeDevs x Flagsmith): **Track 02: AI Agents and Feature Flags**, and, as the same project, **Track 04: Flagsmith Agent Skills** (see [Track 04](#track-04-the-agent-skill)).
 
 ## Try it in 60 seconds
 
@@ -64,6 +64,55 @@ What stops working without each Flagsmith call.
 | **Complete** (`POST experiments/{id}/complete/`) | The experiment never ends: the 50/50 split stays on and the flag never goes back to one value for everyone. |
 | **Warehouse check** (`GET warehouse-connections/`, run by hand before starting: calls 27 and 51) | Flagsmith computes results only from its warehouse. Without the check, a missing connection would show up only at readout time, after real traffic had already been spent. |
 
+
+## Track 04: the Agent Skill
+
+**Problem in one sentence:** a coding agent asked to "A/B test this and roll out the winner" has no safe, complete recipe: the Flagsmith CLI cannot create, start, read or complete an experiment, and an agent left to improvise can edit a live flag, call a winner early, or print a key.
+
+[skills/flagsmith-experiment-rollout/](skills/flagsmith-experiment-rollout/) is an [Agent Skill](https://agentskills.io/specification) (`SKILL.md` with `name` and `description` frontmatter, plus `references/` and `scripts/`). It takes the agent from one sentence to a completed experiment: plan, guard G1-G10, **STOP** for the exact diff, create, **STOP** until the app is deployed, start, readout, complete with control, variant or disable, then a check of what visitors now get.
+
+**Install.** The skill drives this repo's commands, so it runs from a checkout of this repo.
+- Claude Code, this session only: `claude --plugin-dir .` (the repo's [.claude-plugin/plugin.json](.claude-plugin/plugin.json) loads `skills/`; the skill appears as `experimentpilot:flagsmith-experiment-rollout`).
+- Claude Code, always: copy `skills/flagsmith-experiment-rollout/` to `.claude/skills/` in your checkout.
+- Then `npm ci` (installs the pinned Flagsmith CLI binary that the helper and the pilot run) and `flagsmith login`.
+
+### How the skill meets the four criteria
+
+| Criterion | How | Where to check |
+|---|---|---|
+| **Completes the whole job** | Eight steps from a sentence to a completed experiment and a verified flag, with the two human STOPs. Every step names its exact command; a 4-line status helper prints the next step | [SKILL.md](skills/flagsmith-experiment-rollout/SKILL.md); offline run of every step through the real CLI binary: [test/skill-run.test.js](test/skill-run.test.js) |
+| **Token efficiency** | SKILL.md is 88 lines (about 1,900 tokens, Estimate); detail sits in four references that load only when needed. Every `flagsmith` command uses `--jq` for just the needed fields (a test fails otherwise). [scripts/status.mjs](skills/flagsmith-experiment-rollout/scripts/status.mjs) replaces several calls with one 4-line summary. The recorded run allows only 7 tools and no MCP servers: an empty turn costs 17,598 tokens instead of 38,402 | [test/skill-budget.test.js](test/skill-budget.test.js); [transcripts/2026-11-27-baseline/usage.json](transcripts/2026-11-27-baseline/usage.json) |
+| **Creative CLI use** | The CLI does every read (`feature list`, `flag get`, `evaluate`, `api ... --jq`). Where it has no command (metric, experiment, start, results, complete), the pilot sends the call **through the CLI itself** (`--via-cli`: `flagsmith api <path> -X <method> -i --input -`), so the CLI's own login is used and no admin token exists. Tests run the real CLI binary against a loopback fake using the CLI's per-host key variable | [src/flagsmith-cli-transport.js](src/flagsmith-cli-transport.js); [test/flagsmith-cli-transport.test.js](test/flagsmith-cli-transport.test.js); [references/cli-commands.md](skills/flagsmith-experiment-rollout/references/cli-commands.md) |
+| **Safety** | The agent never approves (`approve.js` refuses anything but a person at a terminal; the recorded run also denies the agent that command). Every write goes through the pilot, which checks the approval against hashes of the plan and the diff. Development by default; Production needs an explicit human instruction plus `--allow-production`. Existing flags are never edited. Completing before the stop rule is refused. Keys are never printed: the helper and the pilot read them from the binding file and redact every message | [references/guard-rules.md](skills/flagsmith-experiment-rollout/references/guard-rules.md); refusals in [test/skill-run.test.js](test/skill-run.test.js) |
+
+### What the Flagsmith CLI v2.0.0 can and cannot do here
+
+Checked against `flagsmith --help` and every subcommand's help on 2026-11-27, then run read-only on Development.
+
+| Step | CLI command? | Done by |
+|---|---|---|
+| Check environment, flag key, flag state, what a visitor gets | yes: `api ... --jq`, `feature list`, `flag get`, `evaluate` | the CLI, with `--jq` |
+| Create the flag and its variation | yes (`feature create`, `feature variant add`) | the pilot, after approval (a direct CLI write would skip the approval gate) |
+| Create the metric or the experiment, start it, read or refresh results, complete it | **no** (no `experiment`, `metric` or `results` command) | the pilot's `apply` and `readout`, through `flagsmith api` with `--via-cli` |
+
+Two traps found while checking, both handled in code: the npm `flagsmith` wrapper always exits 0, even on a 404, so the helper and the pilot run the native binary; and the CLI's HTTP error line contains the environment key in the URL, so every message is redacted.
+
+### Recorded real vs scripted
+
+| What | Kind | Source |
+|---|---|---|
+| CLI help, output formats, exit codes, error lines | **Recorded real** (CLI v2.0.0, Development, read-only) | [references/cli-commands.md](skills/flagsmith-experiment-rollout/references/cli-commands.md) |
+| Baseline token count of an empty turn with the skill loaded (17,598 tokens) | **Recorded real** (`claude -p` JSON usage) | [transcripts/2026-11-27-baseline/](transcripts/2026-11-27-baseline/) |
+| Offline skill run: the happy path and 6 refusals | **Scripted**: the real CLI binary against a loopback fake that replays recorded Flagsmith bodies; the test writes the human's approvals | [test/skill-run.test.js](test/skill-run.test.js) |
+| Real run of the skill on Development with a throwaway flag | **Not run yet** | |
+
+### Honest limits of the skill
+
+- It needs this repo: the metric, experiment, start, results and complete steps exist only as pilot commands, because the CLI has no command for them.
+- The "never approve" rule is enforced by code (`approve.js` refuses non-terminal input) and by the run's tool denials, not by the skill text alone. An agent given an unrestricted shell could still edit files outside `approvals/`; the pilot then refuses on the hash check.
+- `flag get` and `evaluate` are not in the offline run: they call routes the fake does not model. They were checked read-only on Development.
+- A winning variant cannot yet be rolled out on real Flagsmith (see [Honest limits](#honest-limits)); the skill offers control or disable and says why.
+- Token counts in tests are Estimates (characters / 4). Measured counts come only from the `claude -p` usage in `transcripts/`.
 
 ## Status
 

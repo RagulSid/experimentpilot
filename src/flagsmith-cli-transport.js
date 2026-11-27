@@ -3,7 +3,7 @@
 // its own stored login (`flagsmith login`), so ExperimentPilot never holds an admin token, and
 // the agent never sees one.
 //
-// Verified on flagsmith v2.0.0 (2026-11-27, notes/flagsmith-calls.md calls 92-95):
+// Verified on flagsmith v2.0.0 (2026-11-27, notes/flagsmith-calls.md calls 92-99):
 //   success: exit 0, stdout = status line, headers, blank line, body (line endings may be mixed)
 //   HTTP error: exit 1, stdout empty, stderr = body, then "Error: <METHOD> <url> returned <code> <text>"
 //     (that url includes the environment key: the client redacts every message)
