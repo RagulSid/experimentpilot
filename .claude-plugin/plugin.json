@@ -1,0 +1,6 @@
+{
+  "name": "experimentpilot",
+  "version": "0.1.0",
+  "description": "ExperimentPilot's Agent Skill: run a Flagsmith experiment end to end and roll out the result safely.",
+  "license": "MIT"
+}
