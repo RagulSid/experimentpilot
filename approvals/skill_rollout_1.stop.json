@@ -1,0 +1,8 @@
+{
+  "planId": "skill_rollout_1",
+  "phase": "stop",
+  "approver": "ragul",
+  "approvedAt": "2026-11-27T11:44:12.985Z",
+  "planSha256": "25c1457e82e051a3b9d2685f08aeff69e577b7e0e982149d9467ab8334feb373",
+  "diffSha256": "c0925d831c12eea2090dca3606714ef777064083e4775c09263f6b4649afd4b1"
+}

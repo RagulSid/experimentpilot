@@ -1,0 +1,1 @@
+Use the flagsmith-experiment-rollout skill. Test whether the variant_b headline gets more Get started clicks than control, app file site/app.js, new throwaway Development flag and plan id skill_rollout_1, 50/50, stop after 50 exposures per variation, scripted sim_ traffic only.

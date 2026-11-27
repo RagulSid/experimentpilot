@@ -1,0 +1,1 @@
+Scripted sim_ traffic sent (150 visitors). Run the readout.

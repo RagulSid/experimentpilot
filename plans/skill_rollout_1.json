@@ -1,0 +1,25 @@
+{
+  "id": "skill_rollout_1",
+  "sentence": "Test whether the variant_b headline gets more Get started clicks than control.",
+  "hypothesis": "Showing \"Yesterday's 5 biggest creator posts, in 60 seconds. See today's.\" instead of \"Your creator digest, summarized by AI\" increases Get started clicks.",
+  "environment": "Development",
+  "flag": {
+    "key": "skill_rollout_1",
+    "type": "multivariate",
+    "variants": [
+      { "key": "control", "value": "control" },
+      { "key": "variant_b", "value": "variant_b" }
+    ]
+  },
+  "metric": { "name": "Get started clicks (skill_rollout_1)", "event": "cta_clicked", "direction": "up" },
+  "split": { "control": 50, "variant_b": 50 },
+  "identity": {
+    "source": "visitor id generated on first visit and kept in localStorage",
+    "usedFor": ["flag", "events"],
+    "prefixReal": "web_",
+    "prefixScripted": "sim_"
+  },
+  "stopRule": { "type": "minExposuresPerVariant", "value": 50 },
+  "decisionRule": { "primaryMetric": "Get started clicks (skill_rollout_1)", "winProbabilityAtLeast": 0.95, "intervalExcludesZero": true },
+  "traffic": { "real": false, "scripted": true }
+}
