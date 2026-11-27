@@ -42,6 +42,7 @@ export async function startFakeFlagsmith({
   resultsBody = null,         // replaces the recorded results body (tests that need a clear winner)
 } = {}) {
   const requests = [];
+  let currentResults = resultsBody;
   const state = {
     features: existingFeatures.map((f) => ({ ...f })),
     experiments: existingExperiments.map((e) => ({ ...e })),
@@ -181,7 +182,7 @@ export async function startFakeFlagsmith({
         return send(res, 202);
       }
       case 'GET results':
-        return send(res, 200, resultsBody ?? recorded('results-get.response.json'));
+        return send(res, 200, currentResults ?? recorded('results-get.response.json'));
       default:
         return send(res, 404, { detail: 'Not found.' });
     }
@@ -193,6 +194,7 @@ export async function startFakeFlagsmith({
     baseUrl: `http://127.0.0.1:${port}/`,
     requests,
     state,
+    setResultsBody: (body) => { currentResults = body; },   // tests that move time forward
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }
