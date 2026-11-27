@@ -124,3 +124,17 @@ test('the status helper prints a usage line and exits non-zero without arguments
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /usage: node skills\/flagsmith-experiment-rollout\/scripts\/status\.mjs <plan/);
 });
+
+// A headless run refuses any command it cannot check in advance (`${...}`, `$(...)`), and every
+// refusal ends the turn: found in the real Development run, turn 2 (`echo "exit=${PIPESTATUS[0]}"`).
+test('the skill tells the agent to run commands as written, and none of its commands uses shell variables or substitution', () => {
+  const skill = read(join(DIR, 'SKILL.md'));
+  assert.match(skill, /exactly as written/i, 'SKILL.md has the run-as-written rule');
+  assert.match(skill, /\$\{|\$\(/, 'the rule names ${...} and $(...)');
+  for (const { rel, text } of docs()) {
+    for (const { cmd } of commands(text)) {
+      if (!/^(node|flagsmith)\s/.test(cmd)) continue;
+      assert.doesNotMatch(cmd, /\$\{|\$\(|PIPESTATUS|\$\?/, `${rel}: ${cmd}`);
+    }
+  }
+});
