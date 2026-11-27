@@ -39,7 +39,10 @@ const turn = state.turns + 1;
 // the status helper and read-only CLI commands. It may never approve, print a credential, call the
 // API directly, create a flag outside the pilot, or read files that hold keys.
 const ALLOWED = [
-  'Skill', 'Read', 'Glob', 'Grep', 'Write(plans/**)', 'Edit(plans/**)',
+  // Write is allowed in the working directory, and Edit deny rules (which also govern Write) block every
+  // path but plans/. Tested 2026-11-27: a path-scoped Edit(/plans/**) allow did not let Write create a
+  // new file in dontAsk mode, while Edit(approvals/**) as a deny did block Write.
+  'Skill', 'Read', 'Glob', 'Grep', 'Write', 'Edit(/plans/**)',
   'Bash(node src/cli.js *)',
   'Bash(node skills/flagsmith-experiment-rollout/scripts/status.mjs *)',
   'Bash(flagsmith feature list *)', 'Bash(flagsmith feature get *)', 'Bash(flagsmith flag get *)',
@@ -51,14 +54,21 @@ const DENIED = [
   'Bash(flagsmith feature create *)', 'Bash(flagsmith feature update *)', 'Bash(flagsmith feature delete *)',
   'Bash(flagsmith feature variant *)', 'Bash(flagsmith flag update *)', 'Bash(flagsmith environment *)',
   'Read(site/config.local.js)', 'Read(**/*.local.js)', 'Read(../flagsmith.json)', 'Read(../flagsmith.production.json)',
-  'Read(../.flagsmith-admin-token)', 'Write(approvals/**)', 'Edit(approvals/**)', 'WebFetch', 'WebSearch',
+  'Read(../.flagsmith-admin-token)', 'Edit(approvals/**)', 'WebFetch', 'WebSearch',
+  ...['src', 'skills', 'scripts', 'test', 'fixtures', 'site', 'transcripts', '.github', '.claude-plugin', '.claude', 'node_modules']
+    .map((d) => `Edit(/${d}/**)`),
+  'Edit(/*.json)', 'Edit(/*.md)', 'Edit(/.gitignore)', 'Edit(/.gitattributes)', 'Edit(/LICENSE)', 'Edit(**/*.local.js)', 'Edit(//**/flagsmith*.json)',
 ];
 
 const args = [
   '-p', message,
   '--plugin-dir', '.',
   '--output-format', 'stream-json', '--verbose',
-  '--permission-mode', 'dontAsk',
+  // acceptEdits: file edits in the working directory run (the Edit deny rules above still win, so only
+  // plans/ is writable). Anything else that would prompt is denied, because nobody answers prompts.
+  // (dontAsk was tried first: it refused every Write, even with a Write allow rule.)
+  '--permission-mode', 'acceptEdits',
+  '--permission-prompts', 'none',
   '--max-budget-usd', '5',
   // Only the tools the skill needs, and no MCP servers: less fixed context per request.
   '--tools', 'Skill,Read,Glob,Grep,Write,Edit,Bash',
@@ -78,7 +88,12 @@ writeFileSync(file, '');
 writeFileSync(join(dir, `turn-${String(turn).padStart(2, '0')}.message.txt`), `${message}\n`);
 console.log(`turn ${turn} of session ${state.sessionId} -> ${file}`);
 
-const child = spawn(process.env.CLAUDE_BIN || 'claude', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+// Subscription login only, never an API key: key variables are left out of the child's
+// environment, and the run stops if Claude Code still reports an API key source at init.
+const KEY_VARS = new Set(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
+const childEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !KEY_VARS.has(k)));
+const child = spawn(process.env.CLAUDE_BIN || 'claude', args, { stdio: ['ignore', 'pipe', 'pipe'], env: childEnv });
+let stoppedForKey = false;
 let buffer = '';
 let result = null;
 const show = (event) => {
@@ -87,6 +102,11 @@ const show = (event) => {
       if (c.type === 'text' && c.text.trim()) console.log(`\n[agent] ${c.text.trim()}`);
       if (c.type === 'tool_use') console.log(`  · ${c.name}: ${String(c.input?.command ?? c.input?.file_path ?? c.input?.skill ?? JSON.stringify(c.input)).slice(0, 200)}`);
     }
+  }
+  if (event.type === 'system' && event.subtype === 'init' && event.apiKeySource !== 'none') {
+    stoppedForKey = true;
+    console.error(`STOPPED: Claude Code reports apiKeySource ${JSON.stringify(event.apiKeySource)}; this run must use the subscription login only.`);
+    child.kill();
   }
   if (event.type === 'result') result = event;
 };
@@ -110,11 +130,11 @@ child.on('close', (code) => {
   const t = totals();
   if (result) {
     const u = result.usage ?? {};
-    console.log(`\nturn ${turn}: exit ${code}, ${result.num_turns} API requests, input ${u.input_tokens} + cache write ${u.cache_creation_input_tokens} + cache read ${u.cache_read_input_tokens} + output ${u.output_tokens} tokens, $${result.total_cost_usd}`);
+    console.log(`\nturn ${turn}: exit ${code}, ${result.num_turns} model requests, input ${u.input_tokens} + cache write ${u.cache_creation_input_tokens} + cache read ${u.cache_read_input_tokens} + output ${u.output_tokens} tokens (subscription login; Claude Code's notional cost $${result.total_cost_usd} is an estimate, not a charge)`);
     if (result.permission_denials?.length) console.log(`permission denials: ${result.permission_denials.map((p) => `${p.tool_name}: ${String(p.tool_input?.command ?? p.tool_input?.file_path ?? '').slice(0, 120)}`).join('; ')}`);
   } else {
     console.log(`\nturn ${turn}: exit ${code}, no result event${stderr ? `: ${redactLine(stderr, secrets).slice(0, 300)}` : ''}`);
   }
-  console.log(`run so far: ${t.turns} turns, ${t.total_tokens} tokens, $${t.total_cost_usd}`);
-  process.exitCode = code ?? 1;
+  console.log(`run so far: ${t.turns} turns, ${t.total_tokens} tokens`);
+  process.exitCode = stoppedForKey ? 1 : code ?? 1;
 });
