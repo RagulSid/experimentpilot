@@ -28,6 +28,7 @@ change in their own terminal; plain code (the guard, the approval hash, the read
 - Orient with one call: `node skills/flagsmith-experiment-rollout/scripts/status.mjs plans/<id>.json --config ../flagsmith.json --app <app file>` (about 4 lines, ends with `next:`).
 - Every direct `flagsmith` call uses `--jq` and returns only the fields you need, for example `flagsmith feature list -c ../flagsmith.json --jq '[.[] | select(.name=="<key>")] | length'`.
 - Use `node src/cli.js`, not `npm run pilot --` (no npm banner; PowerShell drops a bare `--`).
+- Run each command exactly as written: no pipes, `${...}`, `$(...)` or `echo` added. Bash reports a non-zero exit, and pilot output is short. A run with no one to answer prompts refuses commands it cannot check.
 - Quote pilot output only as far as needed: the full diff once, the readout's Decision/Why/Traffic lines.
 
 The binding file (`flagsmith.json`, git-ignored; do not edit it) is `../flagsmith.json` in this repo.
