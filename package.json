@@ -18,6 +18,7 @@
     "demo": "node scripts/demo.mjs"
   },
   "devDependencies": {
+    "@flagsmith/cli": "2.0.0",
     "@flagsmith/flagsmith": "12.6.0"
   }
 }
