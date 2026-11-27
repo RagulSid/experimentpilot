@@ -22,10 +22,18 @@ export function loadSecrets({ bindings = [], tokenFiles = [] } = {}) {
 export function redactLine(line, secrets) {
   let out = line;
   for (const s of secrets) out = out.split(s).join('<secret>');
-  if (ACCOUNT_FIELDS.some((k) => out.includes(`"${k}"`))) {
+  const account = ACCOUNT_FIELDS.some((k) => out.includes(`"${k}"`));
+  const thinking = out.includes('"signature"') || out.includes('"redacted_thinking"');
+  if (account || thinking) {
     try {
       const o = JSON.parse(out);
       for (const k of ACCOUNT_FIELDS) if (k in o) o[k] = '<redacted>';
+      // Thinking-block signatures are opaque base64 that only the model API reads; inside them, runs
+      // of 22 letters and digits look like environment keys to the secret scan. The text is kept.
+      for (const c of Array.isArray(o.message?.content) ? o.message.content : []) {
+        if (c?.type === 'thinking' && typeof c.signature === 'string') c.signature = '<signature>';
+        if (c?.type === 'redacted_thinking' && typeof c.data === 'string') c.data = '<redacted_thinking>';
+      }
       out = JSON.stringify(o);
     } catch { /* not a single JSON object: leave it */ }
   }
