@@ -9,6 +9,8 @@
 //     Dry run unless --apply is given. Approvals are read from approvals/<planId>.<phase>.json
 //     (written only by `npm run approve`). The admin token comes only from FLAGSMITH_ADMIN_TOKEN.
 //     --record saves every call's request and response, redacted, as numbered JSON files.
+//     --via-cli sends every call through the Flagsmith CLI (`flagsmith api`, its own login) instead of
+//     FLAGSMITH_ADMIN_TOKEN. FLAGSMITH_API_URL (the CLI's own variable) overrides the host.
 //   npm run pilot -- plan "<one sentence>" --app <app file> [--record <folder>] [--timeout-ms <ms>]
 //     Asks an AI coding agent (no tools, no credentials) for a plan, parses it strictly and runs
 //     the guard. Writes only plans/proposed/<id>.json, and only if the guard passes. Applies nothing.
@@ -36,6 +38,14 @@ function parseArgs(args, { flags = [], options = [] }) {
     else out.positional.push(a);
   }
   return out;
+}
+
+// --via-cli: the Flagsmith CLI's login instead of FLAGSMITH_ADMIN_TOKEN. FLAGSMITH_API_URL is the
+// CLI's own host variable; honouring it here keeps the client and the CLI on the same host.
+function clientOptions(parsed) {
+  const options = { transport: parsed.flags['--via-cli'] ? 'cli' : 'fetch' };
+  if (process.env.FLAGSMITH_API_URL) options.baseUrl = `${process.env.FLAGSMITH_API_URL.replace(/\/+$/, '')}/`;
+  return options;
 }
 
 function readInputs(planPath, appPath) {
@@ -89,10 +99,10 @@ async function diff(args) {
 }
 
 async function apply(args) {
-  const usage = 'usage: npm run pilot -- apply <planfile> --app <app file> --phase create|start [--apply] [--config flagsmith.json] [--allow-production] [--record <folder>]';
+  const usage = 'usage: npm run pilot -- apply <planfile> --app <app file> --phase create|start|stop [--rollout control|disable|variant:<key>] [--apply] [--via-cli] [--config flagsmith.json] [--allow-production] [--record <folder>]';
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ['--apply', '--allow-production'], options: ['--app', '--config', '--phase', '--record', '--rollout'] });
+    parsed = parseArgs(args, { flags: ['--apply', '--allow-production', '--via-cli'], options: ['--app', '--config', '--phase', '--record', '--rollout'] });
   } catch (err) {
     console.error(`${err.message}\n${usage}`);
     return 1;
@@ -131,7 +141,7 @@ async function apply(args) {
       return 1;
     }
     const record = parsed.options['--record'] ? createRecorder(parsed.options['--record']) : null;
-    client = createClient({ projectId: config.project, environmentKey: config.environment, log, record });
+    client = createClient({ ...clientOptions(parsed), projectId: config.project, environmentKey: config.environment, log, record });
   }
 
   const result = await applyPlan({
@@ -155,10 +165,10 @@ async function apply(args) {
 //   winner_candidate with the reasons. --refresh asks Flagsmith to recompute first (at most once
 //   every 5 minutes). Reads only; changes nothing in the experiment.
 async function readoutCommand(args) {
-  const usage = 'usage: npm run pilot -- readout <planfile> [--refresh] [--config flagsmith.json] [--record <folder>]';
+  const usage = 'usage: npm run pilot -- readout <planfile> [--refresh] [--via-cli] [--config flagsmith.json] [--record <folder>]';
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ['--refresh'], options: ['--config', '--record'] });
+    parsed = parseArgs(args, { flags: ['--refresh', '--via-cli'], options: ['--config', '--record'] });
   } catch (err) {
     console.error(`${err.message}\n${usage}`);
     return 1;
@@ -185,7 +195,7 @@ async function readoutCommand(args) {
   }
   const log = (line) => console.log(line);
   const record = parsed.options['--record'] ? createRecorder(parsed.options['--record']) : null;
-  const client = createClient({ projectId: config.project, environmentKey: config.environment, log, record });
+  const client = createClient({ ...clientOptions(parsed), projectId: config.project, environmentKey: config.environment, log, record });
   try {
     const environment = await client.getEnvironment();
     if (environment?.name !== plan.environment) {
